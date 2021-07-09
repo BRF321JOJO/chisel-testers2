@@ -9,6 +9,7 @@ import firrtl._
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage._
 import logger.{LogLevel, LogLevelAnnotation}
+import chiseltest.internal.WriteVcdAnnotation
 
 object Rfuzz {
 
@@ -22,6 +23,7 @@ object Rfuzz {
     VerilatorUseJNI,
     // debugging output
     // LogLevelAnnotation(LogLevel.Info),
+    WriteVcdAnnotation,
   )
 
 
