@@ -20,9 +20,9 @@ class TLULTargetTests extends AnyFlatSpec {
     val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL")
     //21 bytes required to provide a complete TLI2C input (without HWF Grammar)
 
-    val a = new Instruction(Opcode.Wait).toByteArray()
-    val b = new Instruction(Opcode.Write, 3, 1).toByteArray()
-    val c = new Instruction(Opcode.Read, 3).toByteArray()
+    val a = Instruction(Wait).toByteArray
+    val b = Instruction(Write, 3, 1).toByteArray
+    val c = Instruction(Read, 3).toByteArray
     val input = a ++ b ++ c
 
     val coverage = fuzzer.run(new ByteArrayInputStream(input))

@@ -8,7 +8,6 @@ import chiseltest.simulator._
 import firrtl._
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage._
-import logger.{LogLevel, LogLevelAnnotation}
 import chiseltest.internal.WriteVcdAnnotation
 
 object TLUL {
@@ -47,37 +46,33 @@ object TLUL {
 
 
 //NEW CLASSES + OBJECTS
-
-object Opcode extends Enumeration {
-  type Opcode = Value
-  val Invalid = Value("0")
-  val Wait = Value("1")
-  val Read = Value("2")
-  val Write = Value("3")
-}
+sealed abstract class Opcode(val value: Byte)
+case object Invalid extends Opcode(0)
+case object Wait extends Opcode(1)
+case object Read extends Opcode(2)
+case object Write extends Opcode(3)
 
 object TLULOpcodeAChannel extends Enumeration {
   type TLULOpcodeAChannel = Value
   val PutFull = Value("0")
   val Get = Value("4")
 }
-object TLULOpcodeDChannel extends Enumeration {
-  type TLULOpcodeDChannel = Value
-  val AccessAck = Value("0")
-  val AccessAckData = Value("1")
-}
 
-class Instruction(val opcode: Opcode.Opcode, val address: BigInt = 0, val data: BigInt = 0) {
-  def toByteArray(): Array[Byte] = {
-    var byteArray = Array(opcode.toString.toByte)
+//TODO: Consider cleaning up this logic using writeInt
+case class Instruction(opcode: Opcode, address: BigInt = 0, data: BigInt = 0) {
+  def toByteArray: Array[Byte] = {
+    //OPCODE
+    var byteArray = Array(opcode.value)
 
-    if (opcode != Opcode.Invalid && opcode != Opcode.Wait) {
+    if (opcode != Invalid && opcode != Wait) {
+      //ADDRESS
       for (i <- 0 to 3) {
         val byte = Array(((address >> i * 8) & 0xFF).toByte)
         byteArray ++= byte
       }
 
-      if (opcode != Opcode.Read) {
+      if (opcode != Read) {
+        //DATA
         for (i <- 0 to 3) {
           val byte = Array(((data >> i * 8) & 0xFF).toByte)
           byteArray ++= byte
@@ -87,12 +82,7 @@ class Instruction(val opcode: Opcode.Opcode, val address: BigInt = 0, val data: 
     }
     byteArray
   }
-
-
-
 }
-
-
 //NEW CLASSES + OBJECTS
 
 
@@ -133,12 +123,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private val inputBits = info.inputs.map(_._2).sum
   private val inputSize = scala.math.ceil(inputBits.toDouble / 8.0).toInt
 
-  private def pop(input: java.io.InputStream): Array[Byte] = {
-    val r = input.readNBytes(inputSize)
-    if(r.size == inputSize) { r } else { Array.emptyByteArray }
-  }
-
-  private def getCoverage(): Seq[Byte] = {
+  private def getCoverage: Seq[Byte] = {
     dut.getCoverage().map(_._2).map(v => scala.math.min(v, 255).toByte)
   }
 
@@ -163,7 +148,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   val OT_TL_SZW: BigInt = math.ceil(math.log(OT_TL_DBW) / math.log(2)).toInt
   //Represents a mask for those bits which are read in (1 means read the bit, 0 means don't read it in)
   val FULL_MASK = (1 << OT_TL_DBW) - 1
-
   val DEV_RESPONSE_TIMEOUT = 100
   //NEW CONSTANTS
 
@@ -177,7 +161,12 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     d_data
   }
 
-  //SHARED METHODS
+  private def PutFull(address: BigInt, data: BigInt): Unit = {
+    SendTLULRequest(TLULOpcodeAChannel.PutFull.toString.toInt, address, data, OT_TL_SZW, FULL_MASK)
+    WaitForDeviceResponse()
+    ClearRequest()
+  }
+
   private def SendTLULRequest(opcode: BigInt, address: BigInt, data: BigInt, size: BigInt, mask: BigInt): Unit = {
     dut.poke("auto_in_a_valid", 1)
     dut.poke("auto_in_a_bits_opcode", opcode)
@@ -190,16 +179,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     WaitForDeviceReady()
   }
 
-  private def ClearRequest(): Unit = {
-    ResetH2DSignals()
-    dut.poke("auto_in_d_ready", 1)
-  }
-
-  private def ResetH2DSignals(): Unit = {
-    //Resets a bunch of signals, but not sure what these are
-    //Can figure out by seeing all signals after "Resetting all Host-to_device signals" debug message prints
-  }
-
   private def WaitForDeviceReady(): Unit = {
     WaitForDevice("auto_in_a_ready")
   }
@@ -209,57 +188,48 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private def WaitForDevice(port: String): Unit = {
     var timeout = DEV_RESPONSE_TIMEOUT
     while (dut.peek(port) == 0) {
-      step() //TODO: Do I need only a half step here though?
+      step() //TODO: Do I need only half steps here?
       if (timeout == 0) {
         throw new Exception("TIMEOUT waiting for device")
       }
       timeout -= 1
     }
-
-  }
-  //SHARED METHODS
-
-  //PUT METHODS
-  private def PutFull(address: BigInt, data: BigInt): Unit = {
-    SendTLULRequest(TLULOpcodeAChannel.PutFull.toString.toInt, address, data, OT_TL_SZW, FULL_MASK)
-    RecieveTLULPutReponse()
   }
 
-  private def RecieveTLULPutReponse(): Unit = {
-    WaitForDeviceResponse()
-    ClearRequest()
+  private def ClearRequest(): Unit = {
+    ResetH2DSignals()
+    dut.poke("auto_in_d_ready", 1)
   }
-  //PUT METHODS
 
+  //Resets all DUT inputs to be 0
+  private def ResetH2DSignals(): Unit = {
+    fuzzInputs.foreach { case (name, bits) => dut.poke(name, 0) }
+  }
 
   private def applyInstruction(instruction: Instruction): Unit = {
     instruction.opcode match {
-      case Opcode.Wait => {
-        //Waits 1 clock cycle
+      case Wait => {
         step()
         println("Wait")
       }
-      case Opcode.Read => {
-        //Get command
+      case Read => {
         val readData = Get(instruction.address)
         println("Read: " + readData.toString)
       }
-      case Opcode.Write => {
-        //PutFull command
+      case Write => {
         PutFull(instruction.address, instruction.data)
         println("Write: " + instruction.data.toString + " to address " + instruction.address.toString)
       }
       case _ => {
-        //Does nothing
         println("Invalid")
       }
     }
   }
 
   //VARIABLE SIZE VERSION: Only takes the necessary amount of bytes for the instruction
-  //Returns next instruction, created by taking the next rightmost bits from input
+  //Returns next instruction, created by taking the next rightmost bits from input steam
   private def getInstruction(input: java.io.InputStream): (Instruction, Boolean) = {
-    var (opcode, readValid): (Opcode.Opcode, Boolean) = getOpcode(input)
+    var (opcode, readValid): (Opcode, Boolean) = getOpcode(input)
 
     val ADDRESS_SIZE_BYTES = 4
     val DATA_SIZE_BYTES = 4
@@ -267,16 +237,16 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     if (readValid) {
 
       val instruction: Instruction = opcode match {
-        case Opcode.Read => {
+        case Read => {
           val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
           if (addressBytes.length != ADDRESS_SIZE_BYTES) {
             readValid = false
           }
           val address: BigInt = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-          new Instruction(Opcode.Read, address, 0)
+          Instruction(Read, address)
         }
 
-        case Opcode.Write => {
+        case Write => {
           val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
           val dataBytes: Array[Byte] = input.readNBytes(DATA_SIZE_BYTES)
           if ((addressBytes.length != ADDRESS_SIZE_BYTES) || (dataBytes.length != DATA_SIZE_BYTES)) {
@@ -284,34 +254,34 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
           }
           val address: BigInt = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
           val data: BigInt = dataBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-          new Instruction(Opcode.Write, address, data)
+          Instruction(Write, address, data)
         }
 
-        case _ => new Instruction(opcode, 0, 0)
+        case _ => Instruction(opcode)
       }
 
       (instruction, readValid)
     } else {
-      (new Instruction(Opcode.Invalid, 0, 0), readValid)
+      (Instruction(Invalid), readValid)
     }
   }
 
 
   //CONSTANT VERSION: 3 values of byte correspond to valid opcodes, rest are invalid.
-  private def getOpcode(input: java.io.InputStream): (Opcode.Opcode, Boolean) = {
+  private def getOpcode(input: java.io.InputStream): (Opcode, Boolean) = {
     val OPCODE_SIZE_BYTES = 1
     //Reads in next byte from input stream
     val opcodeByte: Array[Byte] = input.readNBytes(OPCODE_SIZE_BYTES)
     if (opcodeByte.length != OPCODE_SIZE_BYTES) {
-      return (Opcode.Invalid, false)
+      return (Invalid, false)
     }
 
     //Matches opcodeByte to corresponding opcodes (1-3). (0, 4-255) match to Invalid.
-    val opcode_readValid: (Opcode.Opcode, Boolean) = opcodeByte(0) match {
-      case 1 => (Opcode.Wait, true)
-      case 2 => (Opcode.Read, true)
-      case 3 => (Opcode.Write, true)
-      case _ => (Opcode.Invalid, true)
+    val opcode_readValid: (Opcode, Boolean) = opcodeByte(0) match {
+      case Wait.value => (Wait, true)
+      case Read.value => (Read, true)
+      case Write.value => (Write, true)
+      case _ => (Invalid, true)
     }
     opcode_readValid
   }
@@ -326,19 +296,18 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     // we only consider coverage _after_ the reset is done!
     dut.resetCoverage()
 
+    //TODO: Set d_ready to be 1, as is done in TLULHostTb initialization?
+    dut.poke("auto_in_d_ready", 1)
 
-    // CHANGES
     var instruction_readValid: (Instruction, Boolean) = getInstruction(input)
     //Loop if last readValid = true
     while (instruction_readValid._2) {
       applyInstruction(instruction_readValid._1)
       instruction_readValid = getInstruction(input)
     }
-    //CHANGES
-
 
     val startCoverage = System.nanoTime()
-    val c = getCoverage()
+    val c = getCoverage
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
