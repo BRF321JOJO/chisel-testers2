@@ -234,35 +234,30 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     val ADDRESS_SIZE_BYTES = 4
     val DATA_SIZE_BYTES = 4
 
-    if (readValid) {
 
-      val instruction: Instruction = opcode match {
-        case Read => {
-          val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
-          if (addressBytes.length != ADDRESS_SIZE_BYTES) {
-            readValid = false
-          }
-          val address: BigInt = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-          Instruction(Read, address)
+    if (!readValid) {
+      (Instruction(Invalid), false)
+    } else {
+      var address: BigInt = 0
+      var data: BigInt = 0
+
+      if (opcode == Read || opcode == Write) {
+        val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
+        if (addressBytes.length != ADDRESS_SIZE_BYTES) {
+          return (Instruction(Invalid), false)
         }
-
-        case Write => {
-          val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
-          val dataBytes: Array[Byte] = input.readNBytes(DATA_SIZE_BYTES)
-          if ((addressBytes.length != ADDRESS_SIZE_BYTES) || (dataBytes.length != DATA_SIZE_BYTES)) {
-            readValid = false
-          }
-          val address: BigInt = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-          val data: BigInt = dataBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-          Instruction(Write, address, data)
-        }
-
-        case _ => Instruction(opcode)
+        address = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
       }
 
-      (instruction, readValid)
-    } else {
-      (Instruction(Invalid), readValid)
+      if (opcode == Write) {
+        val dataBytes: Array[Byte] = input.readNBytes(DATA_SIZE_BYTES)
+        if (dataBytes.length != ADDRESS_SIZE_BYTES) {
+          return (Instruction(Invalid), false)
+        }
+        data = dataBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
+      }
+
+      (Instruction(opcode, address, data), true)
     }
   }
 
@@ -277,13 +272,13 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     }
 
     //Matches opcodeByte to corresponding opcodes (1-3). (0, 4-255) match to Invalid.
-    val opcode_readValid: (Opcode, Boolean) = opcodeByte(0) match {
-      case Wait.value => (Wait, true)
-      case Read.value => (Read, true)
-      case Write.value => (Write, true)
-      case _ => (Invalid, true)
+    val nextOpcode: Opcode = opcodeByte(0) match {
+      case Wait.value => Wait
+      case Read.value => Read
+      case Write.value => Write
+      case _ => Invalid
     }
-    opcode_readValid
+    (nextOpcode, true)
   }
 
   //NEW METHODS
