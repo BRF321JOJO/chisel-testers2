@@ -51,14 +51,30 @@ object AFLDriverTLUL extends App {
   val target = TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
   println("Ready to fuzz! Waiting for someone to open the fifos!")
   AFLProxyTLUL.fuzz(target, a2jPipe, j2aPipe, inputFile)
-
-
 }
+
+
+//object AFLCoverageFeedbackDriverTLUL extends App {
+//  def usage = "Usage: java " + this.getClass + " FIRRTL TEST_INPUT_FILE AFL_TO_JAVA_PIPE JAVA_TO_AFL_PIPE COVERAGE_OUTPUT_FILE"
+//  require(args.length == 5, usage + "\nNOT: " + args.mkString(" "))
+//
+//  val firrtlSrc = args(0)
+//  val inputFile = os.pwd / args(1)
+//  val (a2jPipe, j2aPipe) = (os.pwd / args(2), os.pwd / args(3))
+//  val coverageOutputFile = os.pwd/"src"/"main"/"scala"/"chiseltest"/"fuzzing"/args(4)
+//
+//  // load the fuzz target
+//  println(s"Loading and instrumenting $firrtlSrc...")
+//  val target = TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
+//  println("Ready to fuzz! Waiting for someone to open the fifos!")
+//  AFLProxyTLUL.fuzz(target, a2jPipe, j2aPipe, inputFile, coverageOutputFile)
+//}
+
 
 /** Communicates with the AFLProxy written by Rohan Padhye and Caroline Lemieux for the JQF project */
 object AFLProxyTLUL {
   val CoverageMapSize = 1 << 16
-  def fuzz(target: FuzzTarget, a2jPipe: os.Path, j2aPipe: os.Path, inputFile: os.Path): Unit = {
+  def fuzz(target: FuzzTarget, a2jPipe: os.Path, j2aPipe: os.Path, inputFile: os.Path, coverageOutputFile: os.Path = null): Unit = {
     // connect to the afl proxy
     val proxyInput = os.read.inputStream(a2jPipe)
     val proxyOutput = os.write.outputStream(j2aPipe)
@@ -72,7 +88,14 @@ object AFLProxyTLUL {
         val in = os.read.inputStream(inputFile)
         val coverage = target.run(in)
         in.close()
-        println(s"Sending coverage feedback. ($coverage)")
+
+        //TODO: Consider using coverageOutputFile parameter
+        val coveragePath: os.Path = os.pwd/"src"/"main"/"scala"/"chiseltest"/"fuzzing"/"Coverage.txt"
+        if (!os.exists(coveragePath)) {
+          os.write(coveragePath, "")
+        }
+        os.write.append(coveragePath, coverage.toString() + "\n")
+        // println(s"Sending coverage feedback. ($coverage)")
         handleResult(proxyOutput, coverage.toArray)
       }
     } catch {

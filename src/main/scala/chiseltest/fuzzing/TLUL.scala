@@ -221,7 +221,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
         println("Write: " + instruction.data.toString + " to address " + instruction.address.toString)
       }
       case _ => {
-        println("Invalid")
+        //println("Invalid")
       }
     }
   }
