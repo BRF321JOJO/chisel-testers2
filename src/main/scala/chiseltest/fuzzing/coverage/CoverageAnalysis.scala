@@ -42,6 +42,8 @@ object CoverageAnalysis extends App{
 
 
   def outputToFile(): Unit = {
+    val start_time = os.mtime(files_coverageCounts(0)._1)
+
     var overallCoverage = Set[Int]()
     val out = new StringBuilder("[")
 
@@ -58,7 +60,9 @@ object CoverageAnalysis extends App{
 
       out.append("{")
       out.append(s""""filename": "${file.toString}", """)
-      out.append(s""""creation_time": ${os.mtime(file).toString}, """)
+
+      val relative_creation_time = (os.mtime(file) - start_time)/1000.0
+      out.append(s""""creation_time": ${relative_creation_time.toString}, """)
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 
       if (filesCovIter.hasNext) {

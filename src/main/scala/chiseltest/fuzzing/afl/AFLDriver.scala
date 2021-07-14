@@ -30,7 +30,7 @@
 
 package chiseltest.fuzzing.afl
 
-import chiseltest.fuzzing.{FuzzTarget, Rfuzz}
+import chiseltest.fuzzing.{FuzzTarget, Rfuzz, TLUL}
 
 import java.io.{InputStream, OutputStream}
 
@@ -39,8 +39,8 @@ import java.io.{InputStream, OutputStream}
  *  Based on code written by Rohan Padhye and Caroline Lemieux for the JQF project
  * */
 object AFLDriver extends App {
-  def usage = "Usage: java " + this.getClass + " FIRRTL TEST_INPUT_FILE AFL_TO_JAVA_PIPE JAVA_TO_AFL_PIPE"
-  require(args.length == 4, usage + "\nNOT: " + args.mkString(" "))
+  def usage = "Usage: java " + this.getClass + " FIRRTL TEST_INPUT_FILE AFL_TO_JAVA_PIPE JAVA_TO_AFL_PIPE TARGET_KIND"
+  require(args.length == 5, usage + "\nNOT: " + args.mkString(" "))
 
   val firrtlSrc = args(0)
   val inputFile = os.pwd / args(1)
@@ -48,11 +48,16 @@ object AFLDriver extends App {
 
   // load the fuzz target
   println(s"Loading and instrumenting $firrtlSrc...")
-  val target = Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl")
+
+  val targetKind = args(4)
+  val target: FuzzTarget = targetKind.toLowerCase match {
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl")
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
+    case other => throw new NotImplementedError(s"Unknown target $other")
+  }
+
   println("Ready to fuzz! Waiting for someone to open the fifos!")
   AFLProxy.fuzz(target, a2jPipe, j2aPipe, inputFile)
-
-
 }
 
 /** Communicates with the AFLProxy written by Rohan Padhye and Caroline Lemieux for the JQF project */
@@ -66,9 +71,6 @@ object AFLProxy {
     // fuzz
     try {
       while (waitForAFL(proxyInput)) {
-        // println("Waiting for input.")
-
-        // println("Executing input.")
         val in = os.read.inputStream(inputFile)
         val (coverage, _) = target.run(in)
         in.close()
