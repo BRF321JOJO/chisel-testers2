@@ -124,7 +124,8 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private val inputSize = scala.math.ceil(inputBits.toDouble / 8.0).toInt
 
   private def getCoverage: Seq[Byte] = {
-    dut.getCoverage().map(_._2).map(v => scala.math.min(v, 255).toByte)
+    val c = dut.getCoverage()
+    c.map(_._2).map(v => scala.math.min(v, 255).toByte)
   }
 
   private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
@@ -210,15 +211,15 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     instruction.opcode match {
       case Wait => {
         step()
-        println("Wait")
+        //println("Wait")
       }
       case Read => {
         val readData = Get(instruction.address)
-        println("Read: " + readData.toString)
+        //println("Read: " + readData.toString)
       }
       case Write => {
         PutFull(instruction.address, instruction.data)
-        println("Write: " + instruction.data.toString + " to address " + instruction.address.toString)
+        //println("Write: " + instruction.data.toString + " to address " + instruction.address.toString)
       }
       case _ => {
         //println("Invalid")
