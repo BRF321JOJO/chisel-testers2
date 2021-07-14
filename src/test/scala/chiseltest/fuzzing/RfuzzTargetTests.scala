@@ -10,7 +10,7 @@ class RfuzzTargetTests extends AnyFlatSpec {
   it should "execute a single input" in {
     val fuzzer = Rfuzz.firrtlToTarget("src/test/resources/fuzzing/gcd.fir", "test_run_dir/rfuzz")
     val input = Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte)
-    val coverage = fuzzer.run(new ByteArrayInputStream(input))
+    val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
     println(coverage)
     fuzzer.finish()
   }

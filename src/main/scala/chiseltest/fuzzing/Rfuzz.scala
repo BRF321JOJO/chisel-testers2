@@ -53,8 +53,15 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
   require(info.inputs.exists(_._1 == MetaReset), s"No meta reset in ${info.inputs}")
   require(info.inputs.exists(_._1 == "reset"))
 
+  private var isValid = true
+
   private val clock = info.clocks.head
   private def step(): Unit = {
+    val assert_failed = dut.peek("assert_failed") == 1
+    if (assert_failed) {
+      isValid = false
+    }
+
     dut.step(clock, 1)
     cycles += 1
   }
@@ -104,11 +111,12 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     }
   }
 
-  override def run(input: java.io.InputStream): Seq[Byte] = {
+  override def run(input: java.io.InputStream): (Seq[Byte], Boolean) = {
     val start = System.nanoTime()
     setInputsToZero()
     metaReset()
     reset()
+    isValid = true
     // we only consider coverage _after_ the reset is done!
     dut.resetCoverage()
 
@@ -124,7 +132,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
-    c
+    (c, isValid)
   }
 
   private def ms(i: Long): Long = i / 1000 / 1000

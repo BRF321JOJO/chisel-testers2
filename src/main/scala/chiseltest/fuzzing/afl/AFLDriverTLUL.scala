@@ -65,7 +65,7 @@ object AFLProxyTLUL {
     try {
       while (waitForAFL(proxyInput)) {
         val in = os.read.inputStream(inputFile)
-        val coverage = target.run(in)
+        val (coverage, _) = target.run(in)
         in.close()
         // println(s"Sending coverage feedback. ($coverage)")
         handleResult(proxyOutput, coverage.toArray)

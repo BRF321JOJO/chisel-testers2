@@ -2,55 +2,75 @@ package chiseltest.fuzzing.coverage
 
 import chiseltest.fuzzing._
 
+import java.io.StringWriter
+
 
 object CoverageAnalysis extends App{
 
-  def usage = "Usage: java " + this.getClass + " FIRRTL QUEUE COVERAGE_OUTPUT_FILE OPTIONAL: OVERWRITE_OUTPUT"
-  require(args.length == 3 || args.length == 4, usage + "\nNOT: " + args.mkString(" "))
+  def usage = "Usage: java " + this.getClass + " FIRRTL QUEUE OUTPUT_JSON TARGET_KIND"
+  require(args.length == 4, usage + "\nNOT: " + args.mkString(" "))
 
   val firrtlSrc = args(0)
   val queue = os.pwd/os.RelPath(args(1))
   val coverageOutputFile = os.pwd/args(2)
 
-  //Handle potential issue with overwriting existing file with same name as output
-  var overwriteOutput = false
-  try {
-    if (args.length == 4) {
-      overwriteOutput = args(3).toBoolean
-    }
-  } catch {
-    case _: Throwable => throw new Exception("OVERWRITE_OUTPUT arguement must be either: true/false")
+  //Decide what fuzzer to use
+  val targetKind = args(3)
+  val target: FuzzTarget = targetKind.toLowerCase match {
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl")
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL") //*Note: Only use with TLI2C.fir
+    case other => throw new NotImplementedError(s"Unknown target $other")
   }
-  if (!overwriteOutput && os.exists(coverageOutputFile)) {
-    throw new Exception("OUTPUT FILE WOULD BE OVERWRITTEN. ADD true AS FOURTH ARGUMENT TO FORCE OVERWRITE")
-  }
-  //Generate blank output file
-  os.write.over(coverageOutputFile, "")
-
 
   // Load in chosen DUT to fuzz
   println(s"Loading and instrumenting $firrtlSrc...")
 
-  //Decide what fuzzer to use
-  val target = Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl")
-  //val target = TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL") //*Note: Only use with TLI2C.fir
-
   println("Generating coverage from input queue...")
   val files = os.list(queue).filter(os.isFile)
   //Counts of coverage for different mux lines
-  val counts = files.map { inputFile =>
+  val files_coverageCounts = files.flatMap { inputFile =>
     val in = os.read.inputStream(inputFile)
-    val coverage = target.run(in)
+    val (coverage, valid) = target.run(in)
     in.close()
-    coverage
+    if (valid) Some((inputFile, coverage)) else None
   }
 
-  println("Outputting cumulative coverage results to output file to " + coverageOutputFile + "...")
+  println("Outputting cumulative coverage results into output file " + coverageOutputFile + "...")
   outputToFile()
 
   println("Done!")
 
-  //METHODS
+
+  def outputToFile(): Unit = {
+    var overallCoverage = Set[Int]()
+    val out = new StringBuilder("[")
+
+    val filesCovIter = files_coverageCounts.iterator
+    while (filesCovIter.hasNext) {
+      val (file, count) = filesCovIter.next()
+
+      overallCoverage = overallCoverage.union(processCoverage(count))
+      val coverPoints = count.size/2
+      val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
+      if (cumulativeCoverage == 1.0) {
+        return
+      }
+
+      out.append("{")
+      out.append(s""""filename": "${file.toString}", """)
+      out.append(s""""creation_time": ${os.mtime(file).toString}, """)
+      out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
+
+      if (filesCovIter.hasNext) {
+        out.append("}, \n")
+      } else {
+        out.append("}]")
+      }
+    }
+
+    os.write.over(coverageOutputFile, out.substring(0))
+  }
+
   def processCoverage(counts: Seq[Byte]): Set[Int] = {
     var coveredPoints = Set[Int]()
     for (i <- 0 until counts.length/2) {
@@ -59,30 +79,6 @@ object CoverageAnalysis extends App{
       }
     }
     coveredPoints
-  }
-
-  def outputToFile(): Unit = {
-    var overallCoverage = Set[Int]()
-
-    os.write.append(coverageOutputFile, "[")
-    files.zip(counts).foreach { case (file, count) =>
-      overallCoverage = overallCoverage.union(processCoverage(count))
-
-      val coverPoints = count.size/2
-      val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
-
-      if (cumulativeCoverage == 1.0) {
-        return
-      }
-
-      os.write.append(coverageOutputFile, "{")
-      os.write.append(coverageOutputFile, s""""filename": "${file.toString}", """)
-      os.write.append(coverageOutputFile, s""""creation_time": ${os.mtime(file).toString}, """)
-      os.write.append(coverageOutputFile, s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
-      os.write.append(coverageOutputFile, "}, \n")
-    }
-    os.truncate(coverageOutputFile, os.size(coverageOutputFile) - 3)
-    os.write.append(coverageOutputFile, "]")
   }
 
 }

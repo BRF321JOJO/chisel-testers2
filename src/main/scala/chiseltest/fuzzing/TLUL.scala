@@ -92,8 +92,15 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   require(info.inputs.exists(_._1 == MetaReset), s"No meta reset in ${info.inputs}")
   require(info.inputs.exists(_._1 == "reset"))
 
+  private var isValid = true
+
   private val clock = info.clocks.head
   private def step(): Unit = {
+    val assert_failed = dut.peek("assert_failed") == 1
+    if (assert_failed) {
+      isValid = false
+    }
+
     dut.step(clock, 1)
     cycles += 1
   }
@@ -127,18 +134,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     val c = dut.getCoverage()
     c.map(_._2).map(v => scala.math.min(v, 255).toByte)
   }
-
-  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
-  private def applyInputs(bytes: Array[Byte]): Unit = {
-    var input: BigInt = bytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-    fuzzInputs.foreach { case (name, bits) =>
-      val mask = (BigInt(1) << bits) - 1
-      val value = input & mask
-      input = input >> bits
-      dut.poke(name, value)
-    }
-  }
-
 
   //NEW CONSTANTS
   //Number of bits of data read in
@@ -202,7 +197,8 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     dut.poke("auto_in_d_ready", 1)
   }
 
-  //Resets all DUT inputs to be 0
+  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
+  //Resets all DUT inputs to 0
   private def ResetH2DSignals(): Unit = {
     fuzzInputs.foreach { case (name, bits) => dut.poke(name, 0) }
   }
@@ -284,11 +280,12 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
 
   //NEW METHODS
 
-  override def run(input: java.io.InputStream): Seq[Byte] = {
+  override def run(input: java.io.InputStream): (Seq[Byte], Boolean) = {
     val start = System.nanoTime()
     setInputsToZero()
     metaReset()
     reset()
+    isValid = true
     // we only consider coverage _after_ the reset is done!
     dut.resetCoverage()
 
@@ -307,7 +304,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
-    c
+    (c, isValid)
   }
 
   private def ms(i: Long): Long = i / 1000 / 1000
