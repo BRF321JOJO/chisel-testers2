@@ -2,9 +2,6 @@ import sys
 import json
 import matplotlib.pyplot as plt
 
-
-
-
 def loadJSON(JSON_filename):
     file = open(JSON_filename)
     input_data = json.load(file)
@@ -18,7 +15,6 @@ def loadJSON(JSON_filename):
         cumulative_coverage.append(input["cumulative_coverage"] * 100)
         creation_times.append((input['creation_time'] - start_time)/1000.0)
 
-   
     assert len(cumulative_coverage) == len(creation_times), "BRANDON: JSON FILE HAS BAD FORMATTING, UNEQUAL NUMBER OF INPUT DATA POINTS"
 
     plt.plot(creation_times, cumulative_coverage)

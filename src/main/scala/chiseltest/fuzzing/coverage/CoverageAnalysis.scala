@@ -1,4 +1,7 @@
-package chiseltest.fuzzing
+package chiseltest.fuzzing.coverage
+
+import chiseltest.fuzzing._
+
 
 object CoverageAnalysis extends App{
 
@@ -25,9 +28,12 @@ object CoverageAnalysis extends App{
   os.write.over(coverageOutputFile, "")
 
 
-  // load the fuzz target
+  // Load in chosen DUT to fuzz
   println(s"Loading and instrumenting $firrtlSrc...")
-  val target = Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
+
+  //Decide what fuzzer to use
+  val target = Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl")
+  //val target = TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL") //*Note: Only use with TLI2C.fir
 
   println("Generating coverage from input queue...")
   val files = os.list(queue).filter(os.isFile)
@@ -39,26 +45,10 @@ object CoverageAnalysis extends App{
     coverage
   }
 
-  println("Outputting cumulative coverage results to output file...")
-  var overallCoverage = Set[Int]()
-
-  os.write.append(coverageOutputFile, "[")
-  files.zip(counts).foreach { case (file, count) =>
-    overallCoverage = overallCoverage.union(processCoverage(count))
-    val coverPoints = count.size/2
-    val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
-
-    os.write.append(coverageOutputFile, "{")
-    os.write.append(coverageOutputFile, s""""filename": "${file.toString}", """)
-    os.write.append(coverageOutputFile, s""""creation_time": ${os.mtime(file).toString}, """)
-    os.write.append(coverageOutputFile, s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
-    os.write.append(coverageOutputFile, "}, \n")
-  }
-  os.truncate(coverageOutputFile, os.size(coverageOutputFile) - 3)
-  os.write.append(coverageOutputFile, "]")
+  println("Outputting cumulative coverage results to output file to " + coverageOutputFile + "...")
+  outputToFile()
 
   println("Done!")
-
 
   //METHODS
   def processCoverage(counts: Seq[Byte]): Set[Int] = {
@@ -70,6 +60,29 @@ object CoverageAnalysis extends App{
     }
     coveredPoints
   }
+
+  def outputToFile(): Unit = {
+    var overallCoverage = Set[Int]()
+
+    os.write.append(coverageOutputFile, "[")
+    files.zip(counts).foreach { case (file, count) =>
+      overallCoverage = overallCoverage.union(processCoverage(count))
+
+      val coverPoints = count.size/2
+      val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
+
+      if (cumulativeCoverage == 1.0) {
+        return
+      }
+
+      os.write.append(coverageOutputFile, "{")
+      os.write.append(coverageOutputFile, s""""filename": "${file.toString}", """)
+      os.write.append(coverageOutputFile, s""""creation_time": ${os.mtime(file).toString}, """)
+      os.write.append(coverageOutputFile, s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
+      os.write.append(coverageOutputFile, "}, \n")
+    }
+    os.truncate(coverageOutputFile, os.size(coverageOutputFile) - 3)
+    os.write.append(coverageOutputFile, "]")
+  }
+
 }
-
-
