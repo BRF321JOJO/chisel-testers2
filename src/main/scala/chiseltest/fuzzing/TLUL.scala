@@ -23,7 +23,6 @@ object TLUL {
     VerilatorUseJNI,
     // debugging output
     // LogLevelAnnotation(LogLevel.Info),
-    WriteVcdAnnotation,
   )
 
 

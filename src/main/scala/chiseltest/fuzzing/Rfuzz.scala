@@ -23,7 +23,6 @@ object Rfuzz {
     VerilatorUseJNI,
     // debugging output
     // LogLevelAnnotation(LogLevel.Info),
-    WriteVcdAnnotation,
   )
 
 

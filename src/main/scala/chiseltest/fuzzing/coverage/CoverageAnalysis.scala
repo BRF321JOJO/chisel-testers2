@@ -11,16 +11,16 @@ object CoverageAnalysis extends App{
   val queue = os.pwd/os.RelPath(args(1))
   val coverageOutputFile = os.pwd/args(2)
 
+  // Load in chosen DUT to fuzz
+  println(s"Loading and instrumenting $firrtlSrc...")
+
   //Decide what fuzzer to use
   val targetKind = args(3)
   val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl", true)
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl", true) //*Note: Only use with TLI2C.fir
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_rfuzz_with_afl", true)
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_TLUL_with_afl", true) //*Note: Only use with TLI2C.fir
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
-
-  // Load in chosen DUT to fuzz
-  println(s"Loading and instrumenting $firrtlSrc...")
 
   println("Generating coverage from input queue. Outputting to file " + coverageOutputFile + "...")
   val files = os.list(queue).filter(os.isFile)
