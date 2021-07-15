@@ -60,7 +60,7 @@ object AssertSignalPass extends Transform with DependencyAPIMigration {
     case v : ir.Verification if v.op == ir.Formal.Assert =>
       asserts.append(ir.DefNode(v.info, v.name, Utils.and(v.en, Utils.not(v.pred))))
       ir.EmptyStmt
-    case i: ir.DefInstance => portNames.get(i.name) match {
+    case i: ir.DefInstance => portNames.get(i.module) match {
       case Some(portName) =>
         // add port to instance type
         val fields = i.tpe.asInstanceOf[ir.BundleType].fields

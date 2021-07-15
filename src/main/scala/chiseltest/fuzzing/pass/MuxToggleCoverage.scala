@@ -48,7 +48,7 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   // TODO: replace with library function
   private def findReset(m: ir.Module): ir.Expression = {
     m.ports.find(_.name == "reset").map(p => ir.Reference(p)).getOrElse(
-      throw new RuntimeException(s"Couldn't find a clock input for:\n${m.serialize}")
+      throw new RuntimeException(s"Couldn't find a reset input for:\n${m.serialize}")
     )
   }
 
