@@ -13,7 +13,7 @@ def loadJSON(JSON_filename):
         cumulative_coverage.append(input["cumulative_coverage"] * 100)
         creation_times.append((input['creation_time']))
 
-    assert len(cumulative_coverage) == len(creation_times), "BRANDON: JSON FILE HAS BAD FORMATTING, UNEQUAL NUMBER OF INPUT DATA POINTS"
+    assert len(cumulative_coverage) == len(creation_times), "JSON FILE HAS BAD FORMATTING, UNEQUAL NUMBER OF INPUT DATA POINTS"
 
     plt.plot(creation_times, cumulative_coverage)
     plt.ylabel("Cumulative coverage (% false mux toggle coverage)")

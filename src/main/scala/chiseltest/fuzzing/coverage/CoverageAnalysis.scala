@@ -2,9 +2,6 @@ package chiseltest.fuzzing.coverage
 
 import chiseltest.fuzzing._
 
-import java.io.StringWriter
-
-
 object CoverageAnalysis extends App{
 
   def usage = "Usage: java " + this.getClass + " FIRRTL QUEUE OUTPUT_JSON TARGET_KIND"
@@ -61,7 +58,15 @@ object CoverageAnalysis extends App{
       out.append("{")
       out.append(s""""filename": "${file.toString}", """)
 
-      val relative_creation_time = (os.mtime(file) - start_time)/1000.0
+
+      val creation_time_string = file.toString().split(',').last
+      //TODO: Fix this hack
+      var creation_time = start_time
+      if (creation_time_string != "orig:in") {
+        creation_time = creation_time_string.toLong / 1000
+      }
+      val relative_creation_time = (creation_time - start_time)/1000.0
+      assert(relative_creation_time >= 0, "Input creation times are not monotonically increasing")
       out.append(s""""creation_time": ${relative_creation_time.toString}, """)
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 

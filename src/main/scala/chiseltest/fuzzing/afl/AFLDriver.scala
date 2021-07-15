@@ -110,6 +110,7 @@ object AFLProxy {
     buf.order(java.nio.ByteOrder.LITTLE_ENDIAN)
     buf.putInt(value)
     out.write(buf.array())
+    out.flush() //TODO: Make sure this is correct
   }
 }
 
