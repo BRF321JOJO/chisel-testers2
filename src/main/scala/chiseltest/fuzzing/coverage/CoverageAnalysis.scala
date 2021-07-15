@@ -14,29 +14,36 @@ object CoverageAnalysis extends App{
   //Decide what fuzzer to use
   val targetKind = args(3)
   val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl")
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL") //*Note: Only use with TLI2C.fir
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/Rfuzz_with_afl", true)
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl", true) //*Note: Only use with TLI2C.fir
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
 
   // Load in chosen DUT to fuzz
   println(s"Loading and instrumenting $firrtlSrc...")
 
-  println("Generating coverage from input queue...")
+  println("Generating coverage from input queue. Outputting to file " + coverageOutputFile + "...")
   val files = os.list(queue).filter(os.isFile)
-  //Counts of coverage for different mux lines
+
+  var valid_files = 0
+
+  //Pulls coverage counts from inputted files
   val files_coverageCounts = files.flatMap { inputFile =>
     val in = os.read.inputStream(inputFile)
     val (coverage, valid) = target.run(in)
     in.close()
+
+    if (!valid) {
+      valid_files+=1
+    }
+
     if (valid) Some((inputFile, coverage)) else None
   }
 
-  println("Outputting cumulative coverage results into output file " + coverageOutputFile + "...")
+  println(s"""Proportion of invalid files is ${valid_files}/${files.length}""")
+
   outputToFile()
-
   println("Done!")
-
 
   def outputToFile(): Unit = {
     val start_time = os.mtime(files_coverageCounts(0)._1)
@@ -56,14 +63,14 @@ object CoverageAnalysis extends App{
       }
 
       out.append("{")
-      out.append(s""""filename": "${file.toString}", """)
 
+      val input_name = file.toString.split("/").last
+      out.append(s""""filename": "${input_name}", """)
 
-      val creation_time_string = file.toString().split(',').last
       //TODO: Fix this hack
       var creation_time = start_time
-      if (creation_time_string != "orig:in") {
-        creation_time = creation_time_string.toLong / 1000
+      if (input_name != "id:000000,orig:in") {
+        creation_time = file.toString().split(',').last.toLong / 1000
       }
       val relative_creation_time = (creation_time - start_time)/1000.0
       assert(relative_creation_time >= 0, "Input creation times are not monotonically increasing")

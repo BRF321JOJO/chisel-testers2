@@ -31,7 +31,6 @@
 package chiseltest.fuzzing.afl
 
 import chiseltest.fuzzing.{FuzzTarget, Rfuzz, TLUL}
-
 import java.io.{InputStream, OutputStream}
 
 /** Provides a main function that can be used to interface with the AFL fuzzer.
@@ -110,7 +109,6 @@ object AFLProxy {
     buf.order(java.nio.ByteOrder.LITTLE_ENDIAN)
     buf.putInt(value)
     out.write(buf.array())
-    out.flush() //TODO: Make sure this is correct
   }
 }
 

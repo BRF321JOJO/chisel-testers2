@@ -27,8 +27,8 @@ object Rfuzz {
   )
 
 
-  def firrtlToTarget(filename: String, targetDir: String): FuzzTarget = {
-    val state = loadFirrtl(filename, targetDir)
+  def firrtlToTarget(filename: String, targetDir: String, writeVCD: Boolean = false): FuzzTarget = {
+    val state = loadFirrtl(filename, targetDir, writeVCD)
     val info = TopmoduleInfo(state.circuit)
     val dut = TreadleSimulator.createContext(state)
     //val dut = VerilatorSimulator.createContext(state)
@@ -36,15 +36,17 @@ object Rfuzz {
   }
 
   private lazy val firrtlStage = new FirrtlStage
-  private def loadFirrtl(filename: String, targetDir: String): firrtl.CircuitState = {
+  private def loadFirrtl(filename: String, targetDir: String, writeVCD: Boolean): firrtl.CircuitState = {
     // we need to compile the firrtl file to low firrtl + add mux toggle coverage and meta reset
-    val annos = DefaultAnnotations ++ Seq(TargetDirAnnotation(targetDir), FirrtlFileAnnotation(filename))
+    var annos = DefaultAnnotations ++ Seq(TargetDirAnnotation(targetDir), FirrtlFileAnnotation(filename))
+    if (writeVCD) {
+      annos = annos ++ Seq(WriteVcdAnnotation)
+    }
     val r = firrtlStage.execute(Array(), annos)
     val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
     firrtl.CircuitState(circuit, r)
   }
 }
-
 
 
 class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget {
@@ -96,7 +98,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     if(r.size == inputSize) { r } else { Array.emptyByteArray }
   }
 
-  private def getCoverage(): Seq[Byte] = {
+  private def getCoverage: Seq[Byte] = {
     dut.getCoverage().map(_._2).map(v => scala.math.min(v, 255).toByte)
   }
 
@@ -128,7 +130,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     }
 
     val startCoverage = System.nanoTime()
-    val c = getCoverage()
+    val c = getCoverage
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
