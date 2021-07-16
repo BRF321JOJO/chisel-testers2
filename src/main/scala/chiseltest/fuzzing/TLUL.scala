@@ -209,7 +209,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   }
 
   private def applyInstruction(instruction: Instruction): Unit = {
-    println("Instruction is: " + instruction.toString)
+    // println("Instruction is: " + instruction.toString)
 
     instruction.opcode match {
       case Wait => {
