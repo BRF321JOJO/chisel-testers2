@@ -156,6 +156,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     WaitForDeviceResponse()
 
     val d_data = dut.peek("auto_in_d_bits_data")
+    step()
     ClearRequest()
     d_data
   }
@@ -163,6 +164,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private def PutFull(address: BigInt, data: BigInt): Unit = {
     SendTLULRequest(TLULOpcodeAChannel.PutFull.toString.toInt, address, data, OT_TL_SZW, FULL_MASK)
     WaitForDeviceResponse()
+    step()
     ClearRequest()
   }
 
@@ -207,6 +209,8 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   }
 
   private def applyInstruction(instruction: Instruction): Unit = {
+    println("Instruction is: " + instruction.toString)
+
     instruction.opcode match {
       case Wait => {
         step()

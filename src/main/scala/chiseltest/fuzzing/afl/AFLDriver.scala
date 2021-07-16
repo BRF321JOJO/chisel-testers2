@@ -50,8 +50,8 @@ object AFLDriver extends App {
 
   val targetKind = args(4)
   val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl", true)
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl", true)
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl")
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
 
@@ -73,7 +73,7 @@ object AFLProxy {
         val in = os.read.inputStream(inputFile)
         val (coverage, _) = target.run(in)
         in.close()
-        // println(s"Sending coverage feedback. ($coverage)")
+        println(s"Sending coverage feedback. ($coverage)")
         handleResult(proxyOutput, coverage.toArray)
       }
     } catch {

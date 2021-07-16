@@ -17,13 +17,13 @@ class TLULTargetTests extends AnyFlatSpec {
   }
 
   it should "execute a single input, using grammar" in {
-    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL")
+    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_unit_test", true)
     //21 bytes required to provide a complete TLI2C input (without HWF Grammar)
 
     val a = Instruction(Wait).toByteArray
     val b = Instruction(Write, 3, 1).toByteArray
     val c = Instruction(Read, 3).toByteArray
-    val input = a ++ b ++ c
+    val input = a ++ a ++ b ++ b ++ c
 
     val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
     println(coverage)

@@ -45,10 +45,11 @@ def gen_seed(input_yaml_file_name, output_file_name, verbose):
   with open(output_file_name, "wb") as fp:
     for instr in fuzz_opcodes:
       hwf_instr = TLULFuzzInstr(instr)
-      if verbose:
-        print(hwf_instr)
+      #if verbose:
+        #print(hwf_instr)
       for _ in range(hwf_instr.repeat):
-        fp.write(hwf_instr.to_bytes())
+        bytes = hwf_instr.to_bytes()
+        fp.write(bytes)
   print(green("Seed file generated!"))
   if verbose:
     dump_seed_file_to_stdin(output_file_name)
