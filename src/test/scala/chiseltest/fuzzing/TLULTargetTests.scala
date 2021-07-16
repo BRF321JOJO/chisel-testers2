@@ -20,10 +20,29 @@ class TLULTargetTests extends AnyFlatSpec {
     val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_unit_test", true)
     //21 bytes required to provide a complete TLI2C input (without HWF Grammar)
 
+    // the I2C peripheral base address is at 0x10016000
+    val addr = 0x10016000L
+
+    // try out some offsets
+    val offsets = Seq(
+      // these offsets seem to be OK (even though the I2C peripheral only uses a small fraction of them)
+      // https://github.com/sifive/sifive-blocks/blob/master/src/main/scala/devices/i2c/I2CCtrlRegs.scala#L7
+      0, 4, 8, 12, 16, 4 * 200,
+      // this offset triggers the assertions
+      4 * 2000,
+    )
+
+
+    // understanding the assertions:
+    // - " 'A' channel carries [...] type unsupported by manager "
+    //   this is actually related to the address being out of range for the peripheral!
+    // - " 'A' channel [...] address not aligned to size "
+    //   the address needs to be a multiple of 4
+
     val a = Instruction(Wait).toByteArray
-    val b = Instruction(Write, 3, 1).toByteArray
-    val c = Instruction(Read, 3).toByteArray
-    val input = a ++ a ++ b ++ b ++ c
+    val b = Instruction(Write, addr, 1).toByteArray
+    val c = Instruction(Read, addr).toByteArray
+    val input = a ++ a ++ b ++ b ++ c ++ offsets.map(o => Instruction(Read, addr + o).toByteArray).reduce(_ ++ _)
 
     val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
     println(coverage)
