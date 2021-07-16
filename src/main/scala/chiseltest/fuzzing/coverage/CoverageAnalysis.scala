@@ -69,7 +69,7 @@ object CoverageAnalysis extends App{
 
       //TODO: Fix this hack
       var creation_time = start_time
-      if (input_name != "id:000000,orig:in") {
+      if (input_name.split(',')(0) != "id:000000") {
         creation_time = file.toString().split(',').last.toLong / 1000
       }
       val relative_creation_time = (creation_time - start_time)/1000.0

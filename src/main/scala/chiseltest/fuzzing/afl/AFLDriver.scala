@@ -42,7 +42,7 @@ object AFLDriver extends App {
   require(args.length == 5, usage + "\nNOT: " + args.mkString(" "))
 
   val firrtlSrc = args(0)
-  val inputFile = os.pwd / args(1)
+  val inputFile = os.pwd / os.RelPath(args(1))
   val (a2jPipe, j2aPipe) = (os.pwd / args(2), os.pwd / args(3))
 
   // load the fuzz target
