@@ -40,13 +40,16 @@ object CoverageAnalysis extends App{
     if (valid) Some((inputFile, coverage)) else None
   }
 
+  assert(valid_files/files.length != 1, s"""No inputs in ${queue} are valid!""")
   println(s"""Proportion of invalid files is ${valid_files}/${files.length}""")
 
   outputToFile()
   println("Done!")
 
   def outputToFile(): Unit = {
-    val start_time = os.mtime(files_coverageCounts(0)._1)
+    //These two variables are initialized later
+    var start_time = 0L
+    var previous_time = 0L
 
     var overallCoverage = Set[Int]()
     val out = new StringBuilder("[")
@@ -58,22 +61,21 @@ object CoverageAnalysis extends App{
       overallCoverage = overallCoverage.union(processCoverage(count))
       val coverPoints = count.size/2
       val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
-      if (cumulativeCoverage == 1.0) {
-        return
-      }
 
       out.append("{")
 
       val input_name = file.toString.split("/").last
       out.append(s""""filename": "${input_name}", """)
 
-      //TODO: Fix this hack
-      var creation_time = start_time
-      if (input_name.split(',')(0) != "id:000000") {
-        creation_time = file.toString().split(',').last.toLong / 1000
+      if (input_name.split(',')(0) == "id:000000") {
+        start_time = file.toString().split(',').last.toLong
       }
+      val creation_time = file.toString().split(',').last.toLong
+      assert(creation_time >= previous_time, "Input creation times are not monotonically increasing")
+      previous_time = creation_time //Update previous time to compare against
+
+
       val relative_creation_time = (creation_time - start_time)/1000.0
-      assert(relative_creation_time >= 0, "Input creation times are not monotonically increasing")
       out.append(s""""creation_time": ${relative_creation_time.toString}, """)
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 
@@ -81,6 +83,11 @@ object CoverageAnalysis extends App{
         out.append("}, \n")
       } else {
         out.append("}]")
+      }
+
+      if (cumulativeCoverage == 1.0) {
+        os.write.over(coverageOutputFile, out.substring(0))
+        return
       }
     }
 

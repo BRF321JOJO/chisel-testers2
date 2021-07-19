@@ -73,7 +73,7 @@ object AFLProxy {
         val in = os.read.inputStream(inputFile)
         val (coverage, _) = target.run(in)
         in.close()
-        println(s"Sending coverage feedback. ($coverage)")
+        // println(s"Sending coverage feedback. ($coverage)")
         handleResult(proxyOutput, coverage.toArray)
       }
     } catch {

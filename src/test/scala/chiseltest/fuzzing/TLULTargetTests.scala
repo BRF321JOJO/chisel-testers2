@@ -18,8 +18,6 @@ class TLULTargetTests extends AnyFlatSpec {
 
   it should "execute a single input, using grammar" in {
     val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_unit_test", true)
-    //21 bytes required to provide a complete TLI2C input (without HWF Grammar)
-
     // the I2C peripheral base address is at 0x10016000
     val addr = 0x10016000L
 
@@ -44,6 +42,16 @@ class TLULTargetTests extends AnyFlatSpec {
     val c = Instruction(Read, addr).toByteArray
     val input = a ++ a ++ b ++ b ++ c ++ offsets.map(o => Instruction(Read, addr + o).toByteArray).reduce(_ ++ _)
 
+    val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
+    println(coverage)
+    fuzzer.finish()
+  }
+
+
+  it should "execute a single input" in {
+    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL")
+
+    val input = //Take in seed
     val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
     println(coverage)
     fuzzer.finish()

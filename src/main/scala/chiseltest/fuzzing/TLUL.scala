@@ -156,7 +156,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     WaitForDeviceResponse()
 
     val d_data = dut.peek("auto_in_d_bits_data")
-    step()
     ClearRequest()
     d_data
   }
@@ -164,7 +163,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private def PutFull(address: BigInt, data: BigInt): Unit = {
     SendTLULRequest(TLULOpcodeAChannel.PutFull.toString.toInt, address, data, OT_TL_SZW, FULL_MASK)
     WaitForDeviceResponse()
-    step()
     ClearRequest()
   }
 
@@ -181,6 +179,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   }
 
   private def WaitForDeviceReady(): Unit = {
+    step()
     WaitForDevice("auto_in_a_ready")
   }
   private def WaitForDeviceResponse(): Unit = {
@@ -189,7 +188,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   private def WaitForDevice(port: String): Unit = {
     var timeout = DEV_RESPONSE_TIMEOUT
     while (dut.peek(port) == 0) {
-      step() //TODO: Do I need only half steps here?
+      step()
       if (timeout == 0) {
         throw new Exception("TIMEOUT waiting for device")
       }
@@ -197,19 +196,15 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     }
   }
 
+
+  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
   private def ClearRequest(): Unit = {
-    ResetH2DSignals()
+    fuzzInputs.foreach { case (name, _) => dut.poke(name, 0) }
     dut.poke("auto_in_d_ready", 1)
   }
 
-  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
-  //Resets all DUT inputs to 0
-  private def ResetH2DSignals(): Unit = {
-    fuzzInputs.foreach { case (name, bits) => dut.poke(name, 0) }
-  }
-
   private def applyInstruction(instruction: Instruction): Unit = {
-    // println("Instruction is: " + instruction.toString)
+    //println("Instruction is: " + instruction.toString)
 
     instruction.opcode match {
       case Wait => {
@@ -233,7 +228,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   //VARIABLE SIZE VERSION: Only takes the necessary amount of bytes for the instruction
   //Returns next instruction, created by taking the next rightmost bits from input steam
   private def getInstruction(input: java.io.InputStream): (Instruction, Boolean) = {
-    var (opcode, readValid): (Opcode, Boolean) = getOpcode(input)
+    val (opcode, readValid): (Opcode, Boolean) = getOpcode(input)
 
     val ADDRESS_SIZE_BYTES = 4
     val DATA_SIZE_BYTES = 4
