@@ -104,6 +104,31 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
   private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
   private def applyInputs(bytes: Array[Byte]): Unit = {
     var input: BigInt = bytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
+
+
+//    dut.poke("auto_in_a_valid", )
+//    dut.poke("auto_in_a_bits_opcode", )
+//    dut.poke("auto_in_a_bits_param", )
+//    dut.poke("auto_in_a_bits_size", )
+//    dut.poke("auto_in_a_bits_source", )
+//    dut.poke("auto_in_a_bits_address", )
+//    dut.poke("auto_in_a_bits_mask", )
+//    dut.poke("auto_in_a_bits_data", )
+//    dut.poke("auto_in_b_ready", )
+//    dut.poke("auto_in_c_valid", )
+//    dut.poke("auto_in_c_bits_opcode", )
+//    dut.poke("auto_in_c_bits_param", )
+//    dut.poke("auto_in_c_bits_size", )
+//    dut.poke("auto_in_c_bits_source", )
+//    dut.poke("auto_in_c_bits_address", )
+//    dut.poke("auto_in_c_bits_data", )
+//    dut.poke("auto_in_c_bits_error", )
+//    dut.poke("auto_in_d_ready", )
+//    dut.poke("auto_in_e_valid", )
+//    dut.poke("auto_in_e_bits_sink", )
+//    dut.poke("io_port_scl_in", )
+//    dut.poke("io_port_sda_in", )
+
     fuzzInputs.foreach { case (name, bits) =>
       val mask = (BigInt(1) << bits) - 1
       val value = input & mask
@@ -129,12 +154,20 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     }
 
     val startCoverage = System.nanoTime()
-    val c = getCoverage
+    var c = getCoverage
+
+    if (!isValid && !acceptInvalid) {
+      c = Seq.fill[Byte](c.length)(0)
+    }
+
+
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
     (c, isValid)
   }
+
+  private val acceptInvalid = false
 
   private def ms(i: Long): Long = i / 1000 / 1000
   override def finish(verbose: Boolean): Unit = {

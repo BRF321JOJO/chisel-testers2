@@ -31,7 +31,8 @@
 package chiseltest.fuzzing.afl
 
 import chiseltest.fuzzing.{FuzzTarget, Rfuzz, TLUL}
-import java.io.{InputStream, OutputStream}
+
+import java.io.{File, InputStream, OutputStream, PrintWriter}
 
 /** Provides a main function that can be used to interface with the AFL fuzzer.
  *
@@ -79,6 +80,11 @@ object AFLProxy {
     } catch {
       case _: java.io.IOException =>
     }
+
+    val end_time_outputFile = "out/end_time"
+    val pw = new PrintWriter(new File(end_time_outputFile))
+    pw.write(s"""${System.currentTimeMillis()}""")
+    pw.close()
 
     target.finish(verbose = true)
   }

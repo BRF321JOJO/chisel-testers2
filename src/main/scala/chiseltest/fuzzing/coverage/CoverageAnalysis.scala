@@ -4,17 +4,19 @@ import chiseltest.fuzzing._
 
 object CoverageAnalysis extends App{
 
-  def usage = "Usage: java " + this.getClass + " FIRRTL QUEUE OUTPUT_JSON TARGET_KIND"
+  def usage = "Usage: java " + this.getClass + " FIRRTL AFL_OUT_FOLDER OUTPUT_JSON TARGET_KIND"
   require(args.length == 4, usage + "\nNOT: " + args.mkString(" "))
 
+  //Parse arguments to scripts
   val firrtlSrc = args(0)
-  val queue = os.pwd/os.RelPath(args(1))
-  val coverageOutputFile = os.pwd/args(2)
+  val queue = os.pwd/os.RelPath(args(1) + "/queue")
+  val end_time_file = os.pwd/os.RelPath(args(1) + "/end_time")
+  val outputJSON = os.pwd/args(2)
 
-  // Load in chosen DUT to fuzz
+
+  //Select and instrument chosen fuzzer
   println(s"Loading and instrumenting $firrtlSrc...")
 
-  //Decide what fuzzer to use
   val targetKind = args(3)
   val target: FuzzTarget = targetKind.toLowerCase match {
     case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_rfuzz_with_afl", true)
@@ -22,78 +24,105 @@ object CoverageAnalysis extends App{
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
 
-  println("Generating coverage from input queue. Outputting to file " + coverageOutputFile + "...")
-  val files = os.list(queue).filter(os.isFile)
 
-  var valid_files = 0
+  println("Generating coverage from input queue. Outputting to file " + outputJSON + "...")
 
-  //Pulls coverage counts from inputted files
-  val files_coverageCounts = files.flatMap { inputFile =>
+  //Read in inputs files from queue and generate list of input-coverage pairs (ignores invalid coverage)
+  val queue_files = os.list(queue).filter(os.isFile)
+  var invalid_files: Int = 0
+
+  val files_coverageCounts = queue_files.flatMap { inputFile =>
     val in = os.read.inputStream(inputFile)
     val (coverage, valid) = target.run(in)
     in.close()
 
-    if (!valid) {
-      valid_files+=1
+    if (valid) {
+      Some((inputFile, coverage))
+    } else {
+      invalid_files+=1
+      None
     }
-
-    if (valid) Some((inputFile, coverage)) else None
   }
 
-  assert(valid_files/files.length != 1, s"""No inputs in ${queue} are valid!""")
-  println(s"""Proportion of invalid files is ${valid_files}/${files.length}""")
+  //Prints proportion of invalid files
+  assert(invalid_files/queue_files.length != 1, s"""No inputs in ${queue} are valid!""")
+  println(s"""Proportion of invalid files is ${invalid_files}/${queue_files.length}""")
 
-  outputToFile()
+
+  //Builds JSON file from coverage data
+  val out = new StringBuilder("{")
+  appendCoverageData(out)
+  out.append(", \n")
+  appendEndTime(out)
+  out.append("}")
+  os.write.over(outputJSON, out.substring(0))
+
+
   println("Done!")
 
-  def outputToFile(): Unit = {
-    //These two variables are initialized later
-    var start_time = 0L
+
+  //Append end time to JSON file
+  def appendEndTime(out: StringBuilder): Unit = {
+    val source = scala.io.Source.fromFile(end_time_file.toString())
+    val data = try source.mkString.toLong finally source.close()
+
+    assert(start_time != 0L, "Start time is not initialized")
+    out.append(s""""end_time": ${(data - start_time)/1000.0}""")
+  }
+
+  private var start_time = 0L
+
+  //Append coverage data to JSON file
+  def appendCoverageData(out: StringBuilder): Unit = {
+    var overallCoverage = Set[Int]()
     var previous_time = 0L
 
-    var overallCoverage = Set[Int]()
-    val out = new StringBuilder("[")
+    out.append(s""""coverage_data": \n[""")
 
     val filesCovIter = files_coverageCounts.iterator
     while (filesCovIter.hasNext) {
       val (file, count) = filesCovIter.next()
 
-      overallCoverage = overallCoverage.union(processCoverage(count))
-      val coverPoints = count.size/2
-      val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
+      out.append("\t{")
 
-      out.append("{")
-
+      //Add filename to JSON file
       val input_name = file.toString.split("/").last
       out.append(s""""filename": "${input_name}", """)
 
-      if (input_name.split(',')(0) == "id:000000") {
-        start_time = file.toString().split(',').last.toLong
-      }
+      //Add relative creation time (seconds) to JSON file
       val creation_time = file.toString().split(',').last.toLong
+      if (input_name.split(',')(0) == "id:000000") {
+        start_time = creation_time
+      }
       assert(creation_time >= previous_time, "Input creation times are not monotonically increasing")
-      previous_time = creation_time //Update previous time to compare against
-
+      previous_time = creation_time
 
       val relative_creation_time = (creation_time - start_time)/1000.0
       out.append(s""""creation_time": ${relative_creation_time.toString}, """)
+
+
+      //Add cumulative coverage to JSON file
+      overallCoverage = overallCoverage.union(processCoverage(count))
+      val coverPoints = count.size/2
+      val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 
-      if (filesCovIter.hasNext) {
-        out.append("}, \n")
-      } else {
-        out.append("}]")
-      }
+      out.append("}")
 
       if (cumulativeCoverage == 1.0) {
-        os.write.over(coverageOutputFile, out.substring(0))
+        println(s"""Cumulative coverage reached 100% early. Stopping on file: $input_name""")
         return
       }
-    }
 
-    os.write.over(coverageOutputFile, out.substring(0))
+      if (filesCovIter.hasNext) {
+        out.append(", \n")
+      }
+    }
+    out.append("\n]")
   }
 
+  //Converts base AFL coverage (number of times each signal is on or off)
+  //to toggle coverage (whether each signal has been both on and off)
   def processCoverage(counts: Seq[Byte]): Set[Int] = {
     var coveredPoints = Set[Int]()
     for (i <- 0 until counts.length/2) {

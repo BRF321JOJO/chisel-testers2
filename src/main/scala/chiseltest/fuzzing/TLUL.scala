@@ -302,12 +302,20 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     }
 
     val startCoverage = System.nanoTime()
-    val c = getCoverage
+    var c = getCoverage
+
+    if (!isValid && !acceptInvalid) {
+      c = Seq.fill[Byte](c.length)(0)
+    }
+
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
     (c, isValid)
   }
+
+  private val acceptInvalid = false
+
 
   private def ms(i: Long): Long = i / 1000 / 1000
   override def finish(verbose: Boolean): Unit = {

@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 
 """Plot inputted JSON files"""
 def plotJSON(JSON_filenames):
-    # Get JSON file(s) data
-    files = [open(file) for file in JSON_filenames]
+    files = [open(file, 'r') for file in JSON_filenames]
+    # List of data dictionaries for each input file
     input_data = [json.load(file) for file in files]
     [file.close() for file in files]
 
@@ -24,15 +24,19 @@ def plotJSON(JSON_filenames):
     plt.show()
 
 
-"""Extract data from INPUT_DATA in JSON format and convert to matplotlib plotting format"""
+"""Extract data from a single INPUT_DATA dictionary in JSON format and convert to matplotlib plotting format"""
 def extractPlottingData(input_data):
-    cumulative_coverage = []
     creation_times = []
-    for input in input_data:
+    cumulative_coverage = []
+    for input in input_data['coverage_data']:
         creation_times.append((input['creation_time']))
         cumulative_coverage.append(input["cumulative_coverage"] * 100)
 
     assert len(creation_times) == len(cumulative_coverage), "JSON FILE HAS BAD FORMATTING, UNEQUAL NUMBER OF INPUT DATA POINTS"
+
+    # Extract end time from JSON file and add it to plotting data
+    creation_times.append(input_data['end_time'])
+    cumulative_coverage.append(cumulative_coverage[-1])
 
     return (creation_times, cumulative_coverage)
 
