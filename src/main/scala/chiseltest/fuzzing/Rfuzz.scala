@@ -92,9 +92,14 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
   private val inputBits = info.inputs.map(_._2).sum
   private val inputSize = scala.math.ceil(inputBits.toDouble / 8.0).toInt
 
+  private val originalRFUZZinputSize = ((((inputBits + 7) / 8) + 8 - 1) / 8) * 8
+
   private def pop(input: java.io.InputStream): Array[Byte] = {
-    val r = input.readNBytes(inputSize)
-    if(r.size == inputSize) { r } else { Array.emptyByteArray }
+    val r = input.readNBytes(originalRFUZZinputSize)
+    if (r.size == originalRFUZZinputSize) { r } else { Array.emptyByteArray }
+
+//    val r = input.readNBytes(inputSize)
+//    if (r.size == inputSize) { r } else { Array.emptyByteArray }
   }
 
   private def getCoverage: Seq[Byte] = {
@@ -104,31 +109,6 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
   private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
   private def applyInputs(bytes: Array[Byte]): Unit = {
     var input: BigInt = bytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
-
-
-//    dut.poke("auto_in_a_valid", )
-//    dut.poke("auto_in_a_bits_opcode", )
-//    dut.poke("auto_in_a_bits_param", )
-//    dut.poke("auto_in_a_bits_size", )
-//    dut.poke("auto_in_a_bits_source", )
-//    dut.poke("auto_in_a_bits_address", )
-//    dut.poke("auto_in_a_bits_mask", )
-//    dut.poke("auto_in_a_bits_data", )
-//    dut.poke("auto_in_b_ready", )
-//    dut.poke("auto_in_c_valid", )
-//    dut.poke("auto_in_c_bits_opcode", )
-//    dut.poke("auto_in_c_bits_param", )
-//    dut.poke("auto_in_c_bits_size", )
-//    dut.poke("auto_in_c_bits_source", )
-//    dut.poke("auto_in_c_bits_address", )
-//    dut.poke("auto_in_c_bits_data", )
-//    dut.poke("auto_in_c_bits_error", )
-//    dut.poke("auto_in_d_ready", )
-//    dut.poke("auto_in_e_valid", )
-//    dut.poke("auto_in_e_bits_sink", )
-//    dut.poke("io_port_scl_in", )
-//    dut.poke("io_port_sda_in", )
-
     fuzzInputs.foreach { case (name, bits) =>
       val mask = (BigInt(1) << bits) - 1
       val value = input & mask
@@ -136,6 +116,30 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
       dut.poke(name, value)
     }
   }
+
+  private def applyRfuzzInputs(bytes: Array[Byte]): Unit = {
+    //Ordered Rfuzz inputs
+    val sortedInputs = Seq[String]("auto_in_a_bits_data", "auto_in_c_bits_data", "auto_in_a_bits_address",
+      "auto_in_c_bits_address", "auto_in_a_bits_source", "auto_in_c_bits_source", "auto_in_a_bits_mask", "auto_in_a_bits_opcode",
+      "auto_in_a_bits_param", "auto_in_c_bits_opcode", "auto_in_c_bits_param", "auto_in_a_bits_size", "auto_in_c_bits_size",
+      "auto_in_a_valid", "auto_in_b_ready", "auto_in_c_valid", "auto_in_c_bits_error", "auto_in_d_ready", "auto_in_e_valid",
+      "auto_in_e_bits_sink", "io_port_scl_in", "io_port_sda_in")
+
+    //Create sequence of (channel, bit size) tuples ordered by original RFUZZ ordering
+    val channelNameToSize = fuzzInputs.map{input => (input._1, input._2) }.toMap
+    val sortedTuples = sortedInputs.map{input => (input, channelNameToSize(input))}
+
+    //Iterate over bits and apply bits to dut
+    var input: BigInt = bytes.reverse.zipWithIndex.map{ case (b, i) => BigInt(b) << (i * 8)}.reduce(_ | _)
+    sortedTuples.foreach{ case (name, size) =>
+      val shiftLength = originalRFUZZinputSize * 8 - size
+      val mask = ((BigInt(1) << size) - 1) << shiftLength
+      val bits = (input & mask) >> shiftLength
+      dut.poke(name, bits)
+      input = input << size
+    }
+  }
+
 
   override def run(input: java.io.InputStream): (Seq[Byte], Boolean) = {
     val start = System.nanoTime()
@@ -148,7 +152,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
 
     var inputBytes = pop(input)
     while(inputBytes.nonEmpty) {
-      applyInputs(inputBytes)
+      applyRfuzzInputs(inputBytes)
       step()
       inputBytes = pop(input)
     }
