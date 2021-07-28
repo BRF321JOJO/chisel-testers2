@@ -56,36 +56,33 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   private case class ModuleCtx(m: ModuleTarget, namespace: Namespace, newAnnos: mutable.ListBuffer[Annotation],
     clock: ir.Expression, reset: ir.Expression)
 
-  //TODO: Currently this code breaks during MetaReset pass due to "Resets must have been removed! error"
   private def coverToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
-    //TODO: What to correctly use for DefRegister register arguments? In particular, is Utils.zero correct?
-    val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), ir.UnknownType,
-      ctx.clock, ctx.reset, Utils.zero)
+    val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), Utils.BoolType,
+      ctx.clock, Utils.zero, Utils.zero)
     val prev_reset_ref = ir.Reference(prev_reset_reg)
     val prev_reset_connect = ir.Connect(ir.NoInfo, prev_reset_ref, ctx.reset)
 
-    val stmts: List[ir.Statement] = conds.flatMap { cond =>
-      val name = cond match {
+    val stmts: List[ir.Statement] = conds.flatMap { muxCond =>
+      val name: String = muxCond match {
         case ir.Reference(name, _, _, _) => name
         case _ => "mux_cond"
       }
-      val node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_s"), cond)
-      val nodeRef = ir.Reference(node)
+      val cond = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_s"), muxCond)
+      val condRef = ir.Reference(cond)
 
-      val prev_cond_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), ir.UnknownType,
-        ctx.clock, ctx.reset, Utils.zero)
+      val prev_cond_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), Utils.BoolType,
+        ctx.clock, Utils.zero, Utils.zero)
       val prev_cond_ref = ir.Reference(prev_cond_reg)
-      val prev_cond_connect = ir.Connect(ir.NoInfo, prev_cond_ref, nodeRef)
+      val prev_cond_connect = ir.Connect(ir.NoInfo, prev_cond_ref, condRef)
 
-      //TODO: Is empty Seq() here correct?
-      val toggle = ir.DoPrim(PrimOps.Xor, Seq(prev_reset_ref, prev_cond_ref), Seq(), ir.UnknownType)
+      val toggle = ir.DoPrim(PrimOps.Xor, Seq(condRef, prev_cond_ref), Seq.empty, Utils.BoolType)
       val toggle_node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), toggle)
 
       val toggleNoReset = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggle_node),
         Utils.not(prev_reset_ref), ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoReset"))
 
       //TODO: What should be appended to the output lists?
-      List(node, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset)
+      List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset)
     }
     (prev_reset_reg :: prev_reset_connect :: stmts, List())
   }

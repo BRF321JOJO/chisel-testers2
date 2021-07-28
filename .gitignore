@@ -16,3 +16,16 @@
 .bloop/
 .metals/
 .vscode/
+
+# Generated code
+Coverage_rfuzz.json
+Coverage_tlul.json
+input
+log
+out/
+out_TLUL/
+out_rfuzz/
+seeds/
+*/__pycache__/
+venv/
+
