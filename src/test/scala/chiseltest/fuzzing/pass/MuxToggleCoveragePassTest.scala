@@ -2,7 +2,7 @@ package chiseltest.fuzzing.pass
 
 import chiseltest.fuzzing.pass
 import chiseltest.internal.WriteVcdAnnotation
-import chiseltest.simulator.{SimulatorContext, TreadleSimulator}
+import chiseltest.simulator.{SimulatorContext, VerilatorSimulator, VerilatorUseJNI}
 import firrtl.LowFirrtlEmitter
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
@@ -28,7 +28,8 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
     RunFirrtlTransformAnnotation(Dependency(pass.MetaResetPass)),
     RunFirrtlTransformAnnotation(Dependency(pass.RemovePrintfPass)),
     RunFirrtlTransformAnnotation(Dependency(pass.AssertSignalPass)),
-    RunFirrtlTransformAnnotation(Dependency[LowFirrtlEmitter])
+    RunFirrtlTransformAnnotation(Dependency[LowFirrtlEmitter]),
+    VerilatorUseJNI,
   )
 
   private val firrtlStage = new FirrtlStage
@@ -38,7 +39,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
     val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
     val state = firrtl.CircuitState(circuit, r ++ (if(vcd) Some(WriteVcdAnnotation) else None))
     // println(state.circuit.serialize)
-    val dut = TreadleSimulator.createContext(state)
+    val dut = VerilatorSimulator.createContext(state)
     dut
   }
 
