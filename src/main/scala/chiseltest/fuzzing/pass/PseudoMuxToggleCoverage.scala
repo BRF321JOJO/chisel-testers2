@@ -13,7 +13,7 @@ import scala.collection.mutable
 // adds mux toggle coverage with a coverage statement
 // see: https://people.eecs.berkeley.edu/~laeufer/papers/rfuzz_kevin_laeufer_iccad2018.pdf
 // TODO: this transform should build upon the standard toggle coverage pass once that is published + polished!
-object MuxToggleCoverage extends Transform with DependencyAPIMigration {
+object PseudoMuxToggleCoverage extends Transform with DependencyAPIMigration {
   override def prerequisites = Seq(
     Dependency[firrtl.transforms.RemoveWires], Dependency(passes.ExpandWhens), Dependency(passes.LowerTypes)
   )
@@ -25,7 +25,7 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
     val c = CircuitTarget(state.circuit.main)
     val newAnnos = mutable.ListBuffer[Annotation]()
     val circuit = state.circuit.mapModule(onModule(_, c, newAnnos))
-    println(circuit.serialize)
+    // println(circuit.serialize)
     state.copy(circuit = circuit, annotations = newAnnos.toList ++: state.annotations)
   }
 
@@ -56,38 +56,22 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   private case class ModuleCtx(m: ModuleTarget, namespace: Namespace, newAnnos: mutable.ListBuffer[Annotation],
     clock: ir.Expression, reset: ir.Expression)
 
-  //TODO: Currently this code breaks during MetaReset pass due to "Resets must have been removed! error"
-  private def coverToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
-    //TODO: What to correctly use for DefRegister register arguments? In particular, is Utils.zero correct?
-    val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), ir.UnknownType,
-      ctx.clock, ctx.reset, Utils.zero)
-    val prev_reset_ref = ir.Reference(prev_reset_reg)
-    val prev_reset_connect = ir.Connect(ir.NoInfo, prev_reset_ref, ctx.reset)
 
-    val stmts: List[ir.Statement] = conds.flatMap { cond =>
+  private def coverToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
+    val stmts = conds.flatMap { cond =>
       val name = cond match {
         case ir.Reference(name, _, _, _) => name
         case _ => "mux_cond"
       }
       val node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_s"), cond)
       val nodeRef = ir.Reference(node)
-
-      val prev_cond_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), ir.UnknownType,
-        ctx.clock, ctx.reset, Utils.zero)
-      val prev_cond_ref = ir.Reference(prev_cond_reg)
-      val prev_cond_connect = ir.Connect(ir.NoInfo, prev_cond_ref, nodeRef)
-
-      //TODO: Is empty Seq() here correct?
-      val toggle = ir.DoPrim(PrimOps.Xor, Seq(prev_reset_ref, prev_cond_ref), Seq(), ir.UnknownType)
-      val toggle_node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), toggle)
-
-      val toggleNoReset = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggle_node),
-        Utils.not(prev_reset_ref), ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoReset"))
-
-      //TODO: What should be appended to the output lists?
-      List(node, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset)
+      val oneCover = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, nodeRef, Utils.not(ctx.reset),
+        ir.StringLit(""), ctx.namespace.newName(name + "_one"))
+      val zeroCover = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, Utils.not(nodeRef), Utils.not(ctx.reset),
+        ir.StringLit(""), ctx.namespace.newName(name + "_zero"))
+      List(node, oneCover, zeroCover)
     }
-    (prev_reset_reg :: prev_reset_connect :: stmts, List())
+    (stmts, List())
   }
 
   // returns a list of unique (at least structurally unique!) mux conditions used in the module
