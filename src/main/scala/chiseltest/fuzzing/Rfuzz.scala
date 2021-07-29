@@ -29,8 +29,8 @@ object Rfuzz {
   def firrtlToTarget(filename: String, targetDir: String, writeVCD: Boolean = false): FuzzTarget = {
     val state = loadFirrtl(filename, targetDir, writeVCD)
     val info = TopmoduleInfo(state.circuit)
-    val dut = TreadleSimulator.createContext(state)
-    //val dut = VerilatorSimulator.createContext(state)
+    //val dut = TreadleSimulator.createContext(state)
+    val dut = VerilatorSimulator.createContext(state)
     new RfuzzTarget(dut, info)
   }
 

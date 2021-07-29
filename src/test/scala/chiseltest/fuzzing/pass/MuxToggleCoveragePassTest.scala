@@ -2,7 +2,7 @@ package chiseltest.fuzzing.pass
 
 import chiseltest.fuzzing.pass
 import chiseltest.internal.WriteVcdAnnotation
-import chiseltest.simulator.{SimulatorContext, VerilatorSimulator, VerilatorUseJNI}
+import chiseltest.simulator.{SimulatorContext, VerilatorSimulator, VerilatorUseJNI, TreadleSimulator}
 import firrtl.LowFirrtlEmitter
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
@@ -45,10 +45,10 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
 
 
   it should "correctly calculate mux toggle coverage" in {
-    val dut = load("MuxToggleCoverage_should_calcualte_coverage", testSrc, vcd = true)
+    val dut = load("MuxToggleCoverage_should_calculate_coverage", testSrc, vcd = true)
 
-    val reset_cond_signals = List((1,1,0), (0,0,0), (0,1,1), (0,0,2), (0,0,2), (0,1,3), (0,1,3), (0,0,4))
-    reset_cond_signals.foreach{ case (reset, cond, cov) =>
+    val signal_values = List((1,1,0), (0,0,0), (0,1,1), (0,0,2), (0,0,2), (0,1,3), (0,1,3), (0,0,4))
+    signal_values.foreach{ case (reset, cond, cov) =>
       dut.poke("reset", reset)
       dut.poke("cond", cond)
       dut.step("clock", 1)

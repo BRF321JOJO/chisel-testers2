@@ -17,10 +17,12 @@ def plotJSON(JSON_filenames):
         (creation_time, cumulative_coverage) = plottingData[i]
         plt.plot(creation_time, cumulative_coverage, label = JSON_filenames[i])
 
-    plt.title("Cumulative coverage over time")
-    plt.ylabel("% of false mux toggle coverage")
+    plt.title("Coverage Over Time")
+    plt.ylabel("Cumulative coverage %")
+    plt.yticks([x for x in range(0, 110, 10)])
     plt.xlabel("Seconds")
     plt.legend()
+    plt.savefig("coveragePlot.png")
     plt.show()
 
 

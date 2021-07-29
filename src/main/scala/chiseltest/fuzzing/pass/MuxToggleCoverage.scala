@@ -25,7 +25,7 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
     val c = CircuitTarget(state.circuit.main)
     val newAnnos = mutable.ListBuffer[Annotation]()
     val circuit = state.circuit.mapModule(onModule(_, c, newAnnos))
-    println(circuit.serialize)
+    //println(circuit.serialize)
     state.copy(circuit = circuit, annotations = newAnnos.toList ++: state.annotations)
   }
 
@@ -81,7 +81,6 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
       val toggleNoReset = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggle_node),
         Utils.not(Utils.or(ctx.reset, prev_reset_ref)), ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoReset"))
 
-      //TODO: What should be appended to the output lists?
       List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset)
     }
     (prev_reset_reg :: prev_reset_connect :: stmts, List())

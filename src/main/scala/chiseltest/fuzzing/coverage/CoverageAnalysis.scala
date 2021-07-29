@@ -19,13 +19,13 @@ object CoverageAnalysis extends App{
 
   val targetKind = args(3)
   val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_rfuzz_with_afl", true)
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_TLUL_with_afl", true) //*Note: Only use with TLI2C.fir
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_rfuzz_with_afl", writeVCD = true)
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_TLUL_with_afl", writeVCD = true) //*Note: Only use with TLI2C.fir
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
 
 
-  println("Generating coverage from input queue. Outputting to file " + outputJSON + "...")
+  println("Generating coverage from provided inputs. Output to file " + outputJSON)
 
   //Read in inputs files from queue and generate list of input-coverage pairs (ignores invalid coverage)
   val queue_files = os.list(queue).filter(os.isFile)
@@ -101,15 +101,16 @@ object CoverageAnalysis extends App{
       out.append(s""""creation_time": ${relative_creation_time.toString}, """)
 
 
-      //Add cumulative coverage to JSON file
-      overallCoverage = overallCoverage.union(processCoverage(count))
-      val coverPoints = count.size/2
+      //Add newly covered points to current set of covered points.
+      overallCoverage = overallCoverage.union(processMuxToggleCoverage(count))
+      //Calculate total coverage reached cumulatively up to now. Add cumulative coverage to JSON file
+      val coverPoints = count.size //TODO: This needs to be divided by 2 when using PseudoMuxToggleCoverage. Handle this.
       val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 
       out.append("}")
 
-      if (cumulativeCoverage == 1.0) {
+      if (cumulativeCoverage == 1.0 && filesCovIter.hasNext) {
         println(s"""Cumulative coverage reached 100% early. Stopping on file: $input_name""")
         return
       }
@@ -121,9 +122,22 @@ object CoverageAnalysis extends App{
     out.append("\n]")
   }
 
-  //Converts base AFL coverage (number of times each signal is on or off)
-  //to toggle coverage (whether each signal has been both on and off)
-  def processCoverage(counts: Seq[Byte]): Set[Int] = {
+
+  //Handles MuxToggleCoverage. Converts COUNTS (number of times each signal toggled) to
+  // COVEREDPOINTS (the set of signals which have been toggled for this input)
+  def processMuxToggleCoverage(counts: Seq[Byte]): Set[Int] = {
+    var coveredPoints = Set[Int]()
+    for (i <- counts.indices) {
+      if (counts(i) >= 1) {
+        coveredPoints += i
+      }
+    }
+    coveredPoints
+  }
+
+  //Handles PseudoMuxToggleCoverage. Converts COUNTS (number of times each signal is on or off for the given input)
+  // to COVEREDPOINTS (the set of signals which were both on and off for the given input)
+  def processPseudoMuxToggleCoverage(counts: Seq[Byte]): Set[Int] = {
     var coveredPoints = Set[Int]()
     for (i <- 0 until counts.length/2) {
       if (counts(i*2) >= 1 && counts(i*2+1) >= 1) {
