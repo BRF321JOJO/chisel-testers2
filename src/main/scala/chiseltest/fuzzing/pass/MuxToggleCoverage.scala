@@ -79,7 +79,7 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
       val toggle_node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), toggle)
 
       val toggleNoReset = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggle_node),
-        Utils.not(prev_reset_ref), ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoReset"))
+        Utils.not(Utils.or(ctx.reset, prev_reset_ref)), ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoReset"))
 
       //TODO: What should be appended to the output lists?
       List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset)

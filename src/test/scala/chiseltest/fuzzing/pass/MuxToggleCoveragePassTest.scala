@@ -53,8 +53,8 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
       dut.poke("cond", cond)
       dut.step("clock", 1)
 
-      println(dut.getCoverage())
-      //assert(dut.getCoverage().head._2 == cov)
+      // println(dut.getCoverage())
+      assert(dut.getCoverage().head._2 == cov)
     }
     dut.finish()
   }
