@@ -58,6 +58,4 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
     }
     dut.finish()
   }
-
-
 }

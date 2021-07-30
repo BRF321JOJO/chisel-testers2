@@ -30,7 +30,9 @@
 
 package chiseltest.fuzzing.afl
 
-import chiseltest.fuzzing.{FuzzTarget, Rfuzz, TLUL}
+import chiseltest.fuzzing.{DoNotCoverAnnotation, FuzzTarget, Rfuzz, TLUL}
+import chiseltest.internal.WriteVcdAnnotation
+import firrtl.annotations.CircuitTarget
 
 import java.io.{File, InputStream, OutputStream, PrintWriter}
 
@@ -49,10 +51,17 @@ object AFLDriver extends App {
   // load the fuzz target
   println(s"Loading and instrumenting $firrtlSrc...")
 
+  //Declare annotations for fuzzing run
+  var targetAnnos = Seq(DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
+  val writeVCD = false
+  if (writeVCD) {
+    targetAnnos ++= Seq(WriteVcdAnnotation)
+  }
+
   val targetKind = args(4)
   val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl")
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl")
+    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl", annos = targetAnnos)
+    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl", annos = targetAnnos)
     case other => throw new NotImplementedError(s"Unknown target $other")
   }
 

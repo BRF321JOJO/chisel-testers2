@@ -28,4 +28,6 @@ out_rfuzz/
 seeds/
 */__pycache__/
 venv/
+coveragePlot.png
+
 

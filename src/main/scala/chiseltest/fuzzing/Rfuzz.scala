@@ -9,10 +9,8 @@ import firrtl._
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage._
 import logger.{LogLevel, LogLevelAnnotation}
-import chiseltest.internal.WriteVcdAnnotation
 
 object Rfuzz {
-
   val DefaultAnnotations = Seq(
     RunFirrtlTransformAnnotation(Dependency(pass.MuxToggleCoverage)),
     RunFirrtlTransformAnnotation(Dependency(pass.MetaResetPass)),
@@ -25,9 +23,8 @@ object Rfuzz {
     // LogLevelAnnotation(LogLevel.Info),
   )
 
-
-  def firrtlToTarget(filename: String, targetDir: String, writeVCD: Boolean = false): FuzzTarget = {
-    val state = loadFirrtl(filename, targetDir, writeVCD)
+  def firrtlToTarget(filename: String, targetDir: String, annos: AnnotationSeq = Seq.empty): FuzzTarget = {
+    val state = loadFirrtl(filename, targetDir, annos)
     val info = TopmoduleInfo(state.circuit)
     //val dut = TreadleSimulator.createContext(state)
     val dut = VerilatorSimulator.createContext(state)
@@ -35,13 +32,10 @@ object Rfuzz {
   }
 
   private lazy val firrtlStage = new FirrtlStage
-  private def loadFirrtl(filename: String, targetDir: String, writeVCD: Boolean): firrtl.CircuitState = {
+  private def loadFirrtl(filename: String, targetDir: String, annos: AnnotationSeq): firrtl.CircuitState = {
     // we need to compile the firrtl file to low firrtl + add mux toggle coverage and meta reset
-    var annos = DefaultAnnotations ++ Seq(TargetDirAnnotation(targetDir), FirrtlFileAnnotation(filename))
-    if (writeVCD) {
-      annos = annos ++ Seq(WriteVcdAnnotation)
-    }
-    val r = firrtlStage.execute(Array(), annos)
+    val allAnnos = DefaultAnnotations ++ Seq(TargetDirAnnotation(targetDir), FirrtlFileAnnotation(filename)) ++ annos
+    val r = firrtlStage.execute(Array(), allAnnos)
     val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
     firrtl.CircuitState(circuit, r)
   }

@@ -4,6 +4,7 @@
 
 package chiseltest.fuzzing.pass
 
+import chiseltest.fuzzing.DoNotCoverAnnotation
 import firrtl._
 import firrtl.annotations._
 import firrtl.options.Dependency
@@ -20,23 +21,26 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   override def invalidates(a: Transform) = false
 
   override def execute(state: CircuitState): CircuitState = {
-    // TODO: add support for standard annotation to skip modules
-
     val c = CircuitTarget(state.circuit.main)
     val newAnnos = mutable.ListBuffer[Annotation]()
-    val circuit = state.circuit.mapModule(onModule(_, c, newAnnos))
+    val circuit = state.circuit.mapModule(onModule(_, collectModulesToIgnore(state), c, newAnnos))
     //println(circuit.serialize)
     state.copy(circuit = circuit, annotations = newAnnos.toList ++: state.annotations)
   }
 
-  private def onModule(m: ir.DefModule, c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation]): ir.DefModule = m match {
-    case mod: ir.Module =>
+  private def onModule(m: ir.DefModule, ignoreSet: Set[String], c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation]): ir.DefModule = m match {
+    case mod: ir.Module if !ignoreSet.contains(mod.name) =>
       val ctx = ModuleCtx(c.module(mod.name), Namespace(mod), newAnnos, findClock(mod), findReset(mod))
       val conds = findMuxConditions(mod)
       val (stmts, annos) = coverToggle(ctx, conds)
       assert(annos.isEmpty)
       mod.copy(body = ir.Block(mod.body +: stmts))
     case other => other
+  }
+
+  def collectModulesToIgnore(state: CircuitState): Set[String] = {
+    val main = state.circuit.main
+    state.annotations.collect { case DoNotCoverAnnotation(target) if target.circuit == main => target.module }.toSet
   }
 
   // TODO: replace with library function
