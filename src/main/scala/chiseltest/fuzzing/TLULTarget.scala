@@ -5,43 +5,6 @@
 package chiseltest.fuzzing
 
 import chiseltest.simulator._
-import firrtl._
-import firrtl.options.{Dependency, TargetDirAnnotation}
-import firrtl.stage._
-import logger.{LogLevel, LogLevelAnnotation}
-
-object TLUL {
-  val DefaultAnnotations = Seq(
-    RunFirrtlTransformAnnotation(Dependency(pass.MuxToggleCoverage)),
-    RunFirrtlTransformAnnotation(Dependency(pass.MetaResetPass)),
-    RunFirrtlTransformAnnotation(Dependency(pass.RemovePrintfPass)),
-    RunFirrtlTransformAnnotation(Dependency(pass.AssertSignalPass)),
-    RunFirrtlTransformAnnotation(Dependency[LowFirrtlEmitter]),
-    // if we use verilator, we want to use JNI
-    VerilatorUseJNI,
-    // debugging output
-    // LogLevelAnnotation(LogLevel.Info),
-  )
-
-
-  def firrtlToTarget(filename: String, targetDir: String, annos: AnnotationSeq = Seq.empty): FuzzTarget = {
-    val state = loadFirrtl(filename, targetDir, annos)
-    val info = TopmoduleInfo(state.circuit)
-    //val dut = TreadleSimulator.createContext(state)
-    val dut = VerilatorSimulator.createContext(state)
-    new TLULTarget(dut, info)
-  }
-
-  private lazy val firrtlStage = new FirrtlStage
-  private def loadFirrtl(filename: String, targetDir: String, annos: AnnotationSeq): firrtl.CircuitState = {
-    // we need to compile the firrtl file to low firrtl + add mux toggle coverage and meta reset
-    val allAnnos = DefaultAnnotations ++ Seq(TargetDirAnnotation(targetDir), FirrtlFileAnnotation(filename)) ++ annos
-    val r = firrtlStage.execute(Array(), allAnnos)
-    val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
-    firrtl.CircuitState(circuit, r)
-  }
-}
-
 
 //NEW CLASSES + OBJECTS
 sealed abstract class Opcode(val value: Byte)
@@ -81,8 +44,6 @@ case class Instruction(opcode: Opcode, address: BigInt = 0, data: BigInt = 0) {
     byteArray
   }
 }
-//NEW CLASSES + OBJECTS
-
 
 class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget {
   val MetaReset = "metaReset"

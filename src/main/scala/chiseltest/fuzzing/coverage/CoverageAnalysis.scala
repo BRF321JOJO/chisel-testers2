@@ -2,7 +2,7 @@ package chiseltest.fuzzing.coverage
 
 import chiseltest.fuzzing._
 import chiseltest.internal.WriteVcdAnnotation
-import firrtl.annotations.CircuitTarget
+import firrtl.annotations.{Annotation, CircuitTarget}
 
 object CoverageAnalysis extends App{
 
@@ -20,19 +20,15 @@ object CoverageAnalysis extends App{
   println(s"Loading and instrumenting $firrtlSrc...")
 
   //Declare annotations for fuzzing run
-  var targetAnnos = Seq(DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
+  var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
   val writeVCD = false
   if (writeVCD) {
-    targetAnnos ++= Seq(WriteVcdAnnotation)
+    targetAnnos = targetAnnos ++ Seq(WriteVcdAnnotation)
   }
 
+  //Generating fuzz target
   val targetKind = args(3)
-  val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_rfuzz_with_afl", annos = targetAnnos)
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/coverage_TLUL_with_afl", annos = targetAnnos)
-    case other => throw new NotImplementedError(s"Unknown target $other")
-  }
-
+  val target: FuzzTarget = FIRRTLHandler.firrtlToTarget(firrtlSrc, targetKind, "test_run_dir/" + targetKind + "_with_afl", annos = targetAnnos)
 
   println("Generating coverage from provided inputs. Output to file " + outputJSON)
 

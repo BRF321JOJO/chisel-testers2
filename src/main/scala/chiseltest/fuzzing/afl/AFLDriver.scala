@@ -30,9 +30,9 @@
 
 package chiseltest.fuzzing.afl
 
-import chiseltest.fuzzing.{DoNotCoverAnnotation, FuzzTarget, Rfuzz, TLUL}
+import chiseltest.fuzzing.{DoNotCoverAnnotation, FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
-import firrtl.annotations.CircuitTarget
+import firrtl.annotations.{Annotation, CircuitTarget}
 
 import java.io.{File, InputStream, OutputStream, PrintWriter}
 
@@ -52,18 +52,15 @@ object AFLDriver extends App {
   println(s"Loading and instrumenting $firrtlSrc...")
 
   //Declare annotations for fuzzing run
-  var targetAnnos = Seq(DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
+  var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
   val writeVCD = false
   if (writeVCD) {
-    targetAnnos ++= Seq(WriteVcdAnnotation)
+    targetAnnos = targetAnnos ++ Seq(WriteVcdAnnotation)
   }
 
+  //Generating fuzz target
   val targetKind = args(4)
-  val target: FuzzTarget = targetKind.toLowerCase match {
-    case "rfuzz" => Rfuzz.firrtlToTarget(firrtlSrc, "test_run_dir/rfuzz_with_afl", annos = targetAnnos)
-    case "tlul" => TLUL.firrtlToTarget(firrtlSrc, "test_run_dir/TLUL_with_afl", annos = targetAnnos)
-    case other => throw new NotImplementedError(s"Unknown target $other")
-  }
+  val target: FuzzTarget = FIRRTLHandler.firrtlToTarget(firrtlSrc, targetKind, "test_run_dir/" + targetKind + "_with_afl", annos = targetAnnos)
 
   println("Ready to fuzz! Waiting for someone to open the fifos!")
   AFLProxy.fuzz(target, a2jPipe, j2aPipe, inputFile)

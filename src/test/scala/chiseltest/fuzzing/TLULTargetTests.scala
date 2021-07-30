@@ -7,8 +7,10 @@ import java.io.ByteArrayInputStream
 class TLULTargetTests extends AnyFlatSpec {
   behavior of "TLULTarget"
 
+  val target = "TLUL"
+
   it should "execute a single input" in {
-    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_unit_test")
+    val fuzzer = FIRRTLHandler.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", target, "test_run_dir/TLUL_unit_test")
     //21 bytes required to provide a complete TLI2C input (without HWF Grammar)
     val input = Array(1, 3, 0, 0, 0, 2, 3, 0, 0, 0, 2, 0, 0, 0, 2).map(_.toByte)
     val (coverage, _) = fuzzer.run(new ByteArrayInputStream(input))
@@ -17,7 +19,7 @@ class TLULTargetTests extends AnyFlatSpec {
   }
 
   it should "execute a single input, using grammar" in {
-    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_unit_test", true)
+    val fuzzer = FIRRTLHandler.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", target, "test_run_dir/TLUL_unit_test")
     // the I2C peripheral base address is at 0x10016000
     val addr = 0x10016000L
 
@@ -49,7 +51,7 @@ class TLULTargetTests extends AnyFlatSpec {
 
 
   it should "execute an inputted file" in {
-    val fuzzer = TLUL.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", "test_run_dir/TLUL_input_file")
+    val fuzzer = FIRRTLHandler.firrtlToTarget("src/test/resources/fuzzing/TLI2C.fir", target, "test_run_dir/TLUL_input_file")
 
     //Read in generated input file as bytes
     //val inputPath = "seeds/auto_ecb_128bit_encrypt_2blocks.hwf"
