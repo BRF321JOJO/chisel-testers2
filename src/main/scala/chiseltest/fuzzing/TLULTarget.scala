@@ -6,7 +6,6 @@ package chiseltest.fuzzing
 
 import chiseltest.simulator._
 
-//NEW CLASSES + OBJECTS
 sealed abstract class Opcode(val value: Byte)
 case object Invalid extends Opcode(0)
 case object Wait extends Opcode(1)

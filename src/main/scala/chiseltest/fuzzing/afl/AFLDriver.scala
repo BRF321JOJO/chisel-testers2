@@ -30,6 +30,7 @@
 
 package chiseltest.fuzzing.afl
 
+import chiseltest.fuzzing.coverage.CoverageAnalysis.processMuxToggleCoverage
 import chiseltest.fuzzing.{DoNotCoverAnnotation, FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
 import firrtl.annotations.{Annotation, CircuitTarget}
@@ -51,7 +52,7 @@ object AFLDriver extends App {
   // load the fuzz target
   println(s"Loading and instrumenting $firrtlSrc...")
 
-  //Declare annotations for fuzzing run
+  //Declare annotations for fuzzing
   var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
   val writeVCD = false
   if (writeVCD) {
@@ -76,11 +77,23 @@ object AFLProxy {
 
     // fuzz
     try {
+//      var overallCoverage = Set[Int]()                                                      //Hack to measure cumulative coverage realtime
+//      var cumulativeCoverage = 0.0                                                          //Hack to measure cumulative coverage realtime
+
       while (waitForAFL(proxyInput)) {
         val in = os.read.inputStream(inputFile)
         val (coverage, _) = target.run(in)
         in.close()
         // println(s"Sending coverage feedback. ($coverage)")
+
+//        overallCoverage = overallCoverage.union(processMuxToggleCoverage(coverage))         //Hack to measure cumulative coverage realtime
+//        val coverPoints = coverage.size                                                     //Hack to measure cumulative coverage realtime
+//        val thisCoverage = overallCoverage.size.toDouble / coverPoints                      //Hack to measure cumulative coverage realtime
+//        if (thisCoverage > cumulativeCoverage) {                                            //Hack to measure cumulative coverage realtime
+//          cumulativeCoverage = thisCoverage                                                 //Hack to measure cumulative coverage realtime
+//          println(cumulativeCoverage.toString, System.currentTimeMillis()/100)              //Hack to measure cumulative coverage realtime
+//        }                                                                                   //Hack to measure cumulative coverage realtime
+
         handleResult(proxyOutput, coverage.toArray)
       }
     } catch {

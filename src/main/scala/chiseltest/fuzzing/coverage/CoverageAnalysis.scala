@@ -6,20 +6,21 @@ import firrtl.annotations.{Annotation, CircuitTarget}
 
 object CoverageAnalysis extends App{
 
-  def usage = "Usage: java " + this.getClass + " FIRRTL AFL_OUT_FOLDER OUTPUT_JSON TARGET_KIND"
-  require(args.length == 4, usage + "\nNOT: " + args.mkString(" "))
+  def usage = "Usage: java " + this.getClass + " FIRRTL AFL_OUT_FOLDER TARGET_KIND"
+  require(args.length == 3, usage + "\nNOT: " + args.mkString(" "))
 
   //Parse arguments to scripts
   val firrtlSrc = args(0)
-  val queue = os.pwd/os.RelPath(args(1) + "/queue")
-  val end_time_file = os.pwd/os.RelPath(args(1) + "/end_time")
-  val outputJSON = os.pwd/args(2)
 
+  val outFolder = os.pwd/os.RelPath(args(1))
+  val queue =         outFolder/os.RelPath("queue")
+  val end_time_file = outFolder/os.RelPath("end_time")
+  val outputJSON =    outFolder/os.RelPath("coverage.json")
 
   //Select and instrument chosen fuzzer
   println(s"Loading and instrumenting $firrtlSrc...")
 
-  //Declare annotations for fuzzing run
+  //Declare annotations for fuzzing
   var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
   val writeVCD = false
   if (writeVCD) {
@@ -27,7 +28,7 @@ object CoverageAnalysis extends App{
   }
 
   //Generating fuzz target
-  val targetKind = args(3)
+  val targetKind = args(2)
   val target: FuzzTarget = FIRRTLHandler.firrtlToTarget(firrtlSrc, targetKind, "test_run_dir/" + targetKind + "_with_afl", annos = targetAnnos)
 
   println("Generating coverage from provided inputs. Output to file " + outputJSON)
@@ -109,7 +110,7 @@ object CoverageAnalysis extends App{
       //Add newly covered points to current set of covered points.
       overallCoverage = overallCoverage.union(processMuxToggleCoverage(count))
       //Calculate total coverage reached cumulatively up to now. Add cumulative coverage to JSON file
-      val coverPoints = count.size //TODO: This needs to be divided by 2 when using PseudoMuxToggleCoverage. Handle this.
+      val coverPoints = count.size //TODO: This needs to be divided by 2 when using PseudoMuxToggleCoverage. Handle this?
       val cumulativeCoverage = overallCoverage.size.toDouble / coverPoints
       out.append(s""""cumulative_coverage": ${cumulativeCoverage.toString}""")
 

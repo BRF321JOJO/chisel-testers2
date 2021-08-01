@@ -1,9 +1,13 @@
 import sys
 import json
 import matplotlib.pyplot as plt
+import numpy as np
+
+# Code to generate flattened list of lists variable flattened_times sourced from the following link:
+# https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
 
 """Plot inputted JSON files"""
-def plotJSON(JSON_filenames):
+def plotJSON(perform_average, JSON_filenames):
     files = [open(file, 'r') for file in JSON_filenames]
     # List of data dictionaries for each input file
     input_data = [json.load(file) for file in files]
@@ -13,9 +17,23 @@ def plotJSON(JSON_filenames):
     plottingData = [extractPlottingData(input) for input in input_data]
 
     # Plot data
-    for i in range(len(plottingData)):
-        (creation_time, cumulative_coverage) = plottingData[i]
-        plt.plot(creation_time, cumulative_coverage, label = JSON_filenames[i])
+    if perform_average:
+        all_times = [creation_times for (creation_times, _) in plottingData]
+        all_times = [item for sublist in all_times for item in sublist]
+        all_times.sort()
+
+        # Idea for this averaging modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz
+        number_of_inputs = len(plottingData)
+        all_percentages = np.zeros((number_of_inputs, len(all_times)))
+        for i in range(number_of_inputs):
+            all_percentages[i] = np.interp(all_times, plottingData[i][0], plottingData[i][1])
+        means = np.mean(all_percentages, axis=0)
+        plt.step(all_times, means, label = "Averaged: " + ", ".join([str(name) for name in JSON_filenames]))
+
+    else:
+        for i in range(len(plottingData)):
+            (creation_time, cumulative_coverage) = plottingData[i]
+            plt.step(creation_time, cumulative_coverage, label = JSON_filenames[i])
 
     plt.title("Coverage Over Time")
     plt.ylabel("Cumulative coverage %")
@@ -44,6 +62,9 @@ def extractPlottingData(input_data):
 
 
 if __name__ == "__main__":
-    JSON_filenames = sys.argv[1:]
+    assert len(sys.argv) > 1, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILES ..."
+    perform_average = True if sys.argv[1].lower() == "true" else False
+
+    JSON_filenames = sys.argv[2:]
     assert len(JSON_filenames) > 0, "MUST INPUT JSON FILE(S) AS COMMAND LINE ARGUMENT(S)"
-    plotJSON(JSON_filenames)
+    plotJSON(perform_average, JSON_filenames)
