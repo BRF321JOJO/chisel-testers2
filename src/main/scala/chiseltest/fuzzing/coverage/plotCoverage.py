@@ -3,12 +3,13 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
+import os
 
 
 """Plot inputted JSON files"""
-def plotJSON(perform_average, JSON_filenames):
+def plotJSON(perform_average, JSON_filepaths):
     # Load and parse plotting data from JSON files
-    json_data = loadJSON(JSON_filenames)
+    (json_data, JSON_filenames) = loadJSON(JSON_filepaths)
     plottingData = [extractPlottingData(input) for input in json_data]
 
     # Plot data (Averaging code modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz)
@@ -30,7 +31,7 @@ def plotJSON(perform_average, JSON_filenames):
     else:
         for i in range(len(plottingData)):
             (creation_time, cumulative_coverage) = plottingData[i]
-            plt.step(creation_time, cumulative_coverage, where='post', label = JSON_filenames[i])
+            plt.step(creation_time, cumulative_coverage, where='post', label=JSON_filenames[i])
 
     plt.title("Coverage Over Time")
     plt.ylabel("Cumulative coverage %")
@@ -41,12 +42,33 @@ def plotJSON(perform_average, JSON_filenames):
     plt.show()
 
 
-"""Loads in data from JSON files"""
-def loadJSON(JSON_filenames):
+"""Loads in data from JSON files. 
+   Input (JSON_LOCATIONS): List of JSON files and folders that contain JSON files.
+   Return: List of JSON data and list of their filenames (INPUT_DATA, JSON_FILENAMES) """
+def loadJSON(JSON_filepaths):
+    JSON_filenames = recursiveLocateJSON(JSON_filepaths)
+
     files = [open(file, 'r') for file in JSON_filenames]
     input_data = [json.load(file) for file in files]
     [file.close() for file in files]
-    return input_data
+
+    return input_data, JSON_filenames
+
+
+"""Locates all paths to JSON files. Searches recursively within folders.
+   Input (JSON_LOCATIONS): List of files and folders that contain JSON files. 
+   Return: List of all JSON files at JSON_FILEPATHS."""
+def recursiveLocateJSON(JSON_filepaths):
+    JSON_filenames = []
+
+    for filepath in JSON_filepaths:
+        if os.path.isfile(filepath) and filepath.split(".")[-1].lower() == "json":
+            JSON_filenames.append(filepath)
+        elif os.path.isdir(filepath):
+            subPaths = [os.path.join(filepath, subPath) for subPath in os.listdir(filepath)]
+            JSON_filenames.extend(recursiveLocateJSON(subPaths))
+
+    return JSON_filenames
 
 
 """Extract plotting data from a single JSON file's data"""
@@ -67,9 +89,13 @@ def extractPlottingData(input_data):
 
 
 if __name__ == "__main__":
-    assert len(sys.argv) > 0, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILES ..."
+    assert len(sys.argv) > 0, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILEPATHS ..."
     perform_average = True if sys.argv[1].lower() == "true" else False
 
-    JSON_filenames = sys.argv[2:]
-    assert len(JSON_filenames) > 0, "MUST INPUT JSON FILE(S) AS COMMAND LINE ARGUMENT(S)"
-    plotJSON(perform_average, JSON_filenames)
+    JSON_filepaths = sys.argv[2:]
+    assert len(JSON_filepaths) > 0, "MUST INPUT JSON FILE(S) AND/OR FOLDERS AS COMMAND LINE ARGUMENT(S)"
+
+    for filepath in JSON_filepaths:
+        assert os.path.isfile(filepath) or os.path.isdir(filepath), "INPUT JSON FILEPATH {} DOES NOT EXIST".format(filepath)
+
+    plotJSON(perform_average, JSON_filepaths)
