@@ -26,8 +26,8 @@ object FIRRTLHandler {
   def firrtlToTarget(filename: String, target: String, targetDir: String, annos: AnnotationSeq = Seq.empty): FuzzTarget = {
     val state = loadFirrtl(filename, targetDir, annos)
     val info = TopmoduleInfo(state.circuit)
-    //val dut = TreadleSimulator.createContext(state)
-    val dut = VerilatorSimulator.createContext(state)
+    val dut = TreadleSimulator.createContext(state)
+    //val dut = VerilatorSimulator.createContext(state)
 
     val fuzzTarget: FuzzTarget = target.toLowerCase() match {
       case "rfuzz" => new RfuzzTarget(dut, info)

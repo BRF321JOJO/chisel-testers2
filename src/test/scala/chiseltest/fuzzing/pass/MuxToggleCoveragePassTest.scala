@@ -39,7 +39,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
     val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
     val state = firrtl.CircuitState(circuit, r ++ (if(vcd) Some(WriteVcdAnnotation) else None))
     // println(state.circuit.serialize)
-    val dut = VerilatorSimulator.createContext(state)
+    val dut = TreadleSimulator.createContext(state)
     dut
   }
 
