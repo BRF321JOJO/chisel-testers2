@@ -1,19 +1,18 @@
-import sys
+import argparse
 import json
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.interpolate import interp1d
 import os
-
+from scipy.interpolate import interp1d
 
 """Plot inputted JSON files"""
-def plotJSON(perform_average, JSON_filepaths):
+def plotJSON(do_average, JSON_filepaths):
     # Load and parse plotting data from JSON files
     (json_data, JSON_filenames) = loadJSON(JSON_filepaths)
     plottingData = [extractPlottingData(input) for input in json_data]
 
     # Plot data (Averaging code modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz)
-    if perform_average:
+    if do_average:
         # Collects all times seen across passed in JSON files
         all_times = []
         [all_times.extend(creation_times) for (creation_times, _) in plottingData]
@@ -47,6 +46,7 @@ def plotJSON(perform_average, JSON_filepaths):
    Return: List of JSON data and list of their filenames (INPUT_DATA, JSON_FILENAMES) """
 def loadJSON(JSON_filepaths):
     JSON_filenames = recursiveLocateJSON(JSON_filepaths)
+    assert JSON_filenames, "NO JSON FILES FOUND WITHIN PROVIDED FILEPATHS: {}".format(JSON_filepaths)
 
     files = [open(file, 'r') for file in JSON_filenames]
     input_data = [json.load(file) for file in files]
@@ -89,13 +89,20 @@ def extractPlottingData(input_data):
 
 
 if __name__ == "__main__":
-    assert len(sys.argv) > 0, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILEPATHS ..."
-    perform_average = True if sys.argv[1].lower() == "true" else False
+    parser = argparse.ArgumentParser(description='Plotting script for fuzzing results')
+    parser.add_argument('do_average', help='Indicates whether the plotted data should be averaged or not')
+    parser.add_argument('JSON_filepaths', metavar='Path', nargs='+', help='Paths where JSON files exist, recursively searches')
+    args = parser.parse_args()
 
-    JSON_filepaths = sys.argv[2:]
-    assert len(JSON_filepaths) > 0, "MUST INPUT JSON FILE(S) AND/OR FOLDERS AS COMMAND LINE ARGUMENT(S)"
+    if args.do_average.lower() == "true":
+        do_average = True
+    elif args.do_average.lower() == "false":
+        do_average = False
+    else:
+        raise argparse.ArgumentTypeError("DO_AVERAGE ARGUMENT MUST BE TRUE/FALSE, NOT: {}".format(args.do_average))
 
-    for filepath in JSON_filepaths:
-        assert os.path.isfile(filepath) or os.path.isdir(filepath), "INPUT JSON FILEPATH {} DOES NOT EXIST".format(filepath)
+    for filepath in args.JSON_filepaths:
+        if not (os.path.isfile(filepath) or os.path.isdir(filepath)):
+            raise argparse.ArgumentTypeError("INPUT JSON FILEPATH DOES NOT EXIST: {}".format(filepath))
 
-    plotJSON(perform_average, JSON_filepaths)
+    plotJSON(do_average, args.JSON_filepaths)
