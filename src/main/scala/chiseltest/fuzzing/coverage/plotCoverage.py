@@ -8,7 +8,22 @@ from scipy.interpolate import interp1d
 """Plot inputted JSON files"""
 def plotJSON(do_average, JSON_filepaths):
     # Load and parse plotting data from JSON files
-    (json_data, JSON_filenames) = loadJSON(JSON_filepaths)
+    loadedData = loadJSON(JSON_filepaths)
+    for (json_data, JSON_filenames) in loadedData:
+        plotLines(do_average, json_data, JSON_filenames)
+
+    # Configure and show plot
+    plt.title("Coverage Over Time")
+    plt.ylabel("Cumulative coverage %")
+    plt.yticks([x for x in range(0, 110, 10)])
+    plt.xlabel("Seconds")
+    plt.legend()
+    plt.savefig("coveragePlot.png")
+    plt.show()
+
+
+"""Converts inputted JSON data to plots"""
+def plotLines(do_average, json_data, JSON_filenames):
     plottingData = [extractPlottingData(input) for input in json_data]
 
     # Plot data (Averaging code modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz)
@@ -32,27 +47,21 @@ def plotJSON(do_average, JSON_filepaths):
             (creation_time, cumulative_coverage) = plottingData[i]
             plt.step(creation_time, cumulative_coverage, where='post', label=JSON_filenames[i])
 
-    plt.title("Coverage Over Time")
-    plt.ylabel("Cumulative coverage %")
-    plt.yticks([x for x in range(0, 110, 10)])
-    plt.xlabel("Seconds")
-    plt.legend()
-    plt.savefig("coveragePlot.png")
-    plt.show()
-
 
 """Loads in data from JSON files. 
    Input (JSON_LOCATIONS): List of JSON files and folders that contain JSON files.
-   Return: List of JSON data and list of their filenames (INPUT_DATA, JSON_FILENAMES) """
+   Return: List of tuples (INPUT_DATA, JSON_FILENAMES) for each filepath argument"""
 def loadJSON(JSON_filepaths):
-    JSON_filenames = recursiveLocateJSON(JSON_filepaths)
-    assert JSON_filenames, "NO JSON FILES FOUND WITHIN PROVIDED FILEPATHS: {}".format(JSON_filepaths)
+    all_JSON_filenames = [recursiveLocateJSON([JSON_filepath]) for JSON_filepath in JSON_filepaths]
+    assert any(all_JSON_filenames), "NO JSON FILES FOUND WITHIN PROVIDED FILEPATHS: {}".format(JSON_filepaths)
 
-    files = [open(file, 'r') for file in JSON_filenames]
-    input_data = [json.load(file) for file in files]
-    [file.close() for file in files]
-
-    return input_data, JSON_filenames
+    returned_data = []
+    for this_path_filenames in all_JSON_filenames:
+        files = [open(file, 'r') for file in this_path_filenames]
+        input_data = [json.load(file) for file in files]
+        [file.close() for file in files]
+        returned_data.append((input_data, this_path_filenames))
+    return returned_data
 
 
 """Locates all paths to JSON files. Searches recursively within folders.
@@ -89,9 +98,9 @@ def extractPlottingData(input_data):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Plotting script for fuzzing results')
-    parser.add_argument('do_average', help='Indicates whether the plotted data should be averaged or not')
-    parser.add_argument('JSON_filepaths', metavar='Path', nargs='+', help='Paths where JSON files exist, recursively searches')
+    parser = argparse.ArgumentParser(description='Script to plot fuzzing results')
+    parser.add_argument('do_average', help='If plotting data at a filepath location (recursive) should be averaged')
+    parser.add_argument('JSON_filepaths', metavar='Path', nargs='+', help='Paths to look for JSON files (recursive)')
     args = parser.parse_args()
 
     if args.do_average.lower() == "true":
