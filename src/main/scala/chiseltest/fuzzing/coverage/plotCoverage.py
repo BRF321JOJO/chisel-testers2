@@ -2,38 +2,35 @@ import sys
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interp1d
 
-# Code to generate flattened list of lists variable flattened_times sourced from the following link:
-# https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
 
 """Plot inputted JSON files"""
 def plotJSON(perform_average, JSON_filenames):
-    files = [open(file, 'r') for file in JSON_filenames]
-    # List of data dictionaries for each input file
-    input_data = [json.load(file) for file in files]
-    [file.close() for file in files]
+    # Load and parse plotting data from JSON files
+    json_data = loadJSON(JSON_filenames)
+    plottingData = [extractPlottingData(input) for input in json_data]
 
-    # Convert JSON data to plotting data
-    plottingData = [extractPlottingData(input) for input in input_data]
-
-    # Plot data
+    # Plot data (Averaging code modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz)
     if perform_average:
-        all_times = [creation_times for (creation_times, _) in plottingData]
-        all_times = [item for sublist in all_times for item in sublist]
-        all_times.sort()
+        # Collects all times seen across passed in JSON files
+        all_times = []
+        [all_times.extend(creation_times) for (creation_times, _) in plottingData]
+        all_times = sorted(set(all_times))
 
-        # Idea for this averaging modeled from RFUZZ analysis.py script: https://github.com/ekiwi/rfuzz
-        number_of_inputs = len(plottingData)
-        all_percentages = np.zeros((number_of_inputs, len(all_times)))
-        for i in range(number_of_inputs):
-            all_percentages[i] = np.interp(all_times, plottingData[i][0], plottingData[i][1])
-        means = np.mean(all_percentages, axis=0)
-        plt.step(all_times, means, label = "Averaged: " + ", ".join([str(name) for name in JSON_filenames]))
+        all_coverage = np.zeros((len(plottingData), len(all_times)))
+        for i, (creation_times, cumulative_coverage) in enumerate(plottingData):
+            # Returns function which interpolates y-value(s) when passed x-value(s). Obeys step function, using previous value when interpolating.
+            interp_function = interp1d(creation_times, cumulative_coverage, kind='previous', bounds_error=False, assume_sorted=True)
+            # Interpolates coverage value for each time in all_times. Saved to all_coverage matrix
+            all_coverage[i] = interp_function(all_times)
+        means = np.mean(all_coverage, axis=0)
+        plt.step(all_times, means, where='post', label="Averaged: " + ", ".join([str(name) for name in JSON_filenames]))
 
     else:
         for i in range(len(plottingData)):
             (creation_time, cumulative_coverage) = plottingData[i]
-            plt.step(creation_time, cumulative_coverage, label = JSON_filenames[i])
+            plt.step(creation_time, cumulative_coverage, where='post', label = JSON_filenames[i])
 
     plt.title("Coverage Over Time")
     plt.ylabel("Cumulative coverage %")
@@ -44,7 +41,15 @@ def plotJSON(perform_average, JSON_filenames):
     plt.show()
 
 
-"""Extract data from a single INPUT_DATA dictionary in JSON format and convert to matplotlib plotting format"""
+"""Loads in data from JSON files"""
+def loadJSON(JSON_filenames):
+    files = [open(file, 'r') for file in JSON_filenames]
+    input_data = [json.load(file) for file in files]
+    [file.close() for file in files]
+    return input_data
+
+
+"""Extract plotting data from a single JSON file's data"""
 def extractPlottingData(input_data):
     creation_times = []
     cumulative_coverage = []
@@ -52,17 +57,17 @@ def extractPlottingData(input_data):
         creation_times.append((input['creation_time']))
         cumulative_coverage.append(input["cumulative_coverage"] * 100)
 
-    assert len(creation_times) == len(cumulative_coverage), "JSON FILE HAS BAD FORMATTING, UNEQUAL NUMBER OF INPUT DATA POINTS"
-
     # Extract end time from JSON file and add it to plotting data
     creation_times.append(input_data['end_time'])
     cumulative_coverage.append(cumulative_coverage[-1])
+
+    assert len(creation_times) == len(cumulative_coverage), "NUMBER OF TIMES SHOULD EQUAL NUMBER OF COVERAGE READINGS"
 
     return (creation_times, cumulative_coverage)
 
 
 if __name__ == "__main__":
-    assert len(sys.argv) > 1, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILES ..."
+    assert len(sys.argv) > 0, "MUST INPUT ARGUMENTS: PERFORM_AVERAGE JSON_FILES ..."
     perform_average = True if sys.argv[1].lower() == "true" else False
 
     JSON_filenames = sys.argv[2:]
