@@ -100,7 +100,7 @@ object AFLProxy {
       case _: java.io.IOException =>
     }
 
-    val end_time_outputFile = "out/end_time"
+    val end_time_outputFile = "temp_out/end_time"
     val pw = new PrintWriter(new File(end_time_outputFile))
     pw.write(s"""${System.currentTimeMillis()}""")
     pw.close()
