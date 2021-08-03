@@ -39,7 +39,7 @@ def plotLines(do_average, json_data, JSON_filenames):
             interp_function = interp1d(creation_times, cumulative_coverage, kind='previous', bounds_error=False, assume_sorted=True)
             # Interpolates coverage value for each time in all_times. Saved to all_coverage matrix
             all_coverage[i] = interp_function(all_times)
-        means = np.mean(all_coverage, axis=0)
+        means = np.nanmean(all_coverage, axis=0)
         plt.step(all_times, means, where='post', label="Averaged: " + ", ".join([str(name) for name in JSON_filenames]))
 
     else:
@@ -55,8 +55,15 @@ def loadJSON(JSON_filepaths):
     all_JSON_filenames = [recursiveLocateJSON([JSON_filepath]) for JSON_filepath in JSON_filepaths]
     assert any(all_JSON_filenames), "NO JSON FILES FOUND WITHIN PROVIDED FILEPATHS: {}".format(JSON_filepaths)
 
+    all_valid_JSON_filenames = []
+    for i, names in enumerate(all_JSON_filenames):
+        if not names:
+            print("WARNING: Filepath contains no JSON files: {}".format(JSON_filepaths[i]))
+        else:
+            all_valid_JSON_filenames.append(names)
+
     returned_data = []
-    for this_path_filenames in all_JSON_filenames:
+    for this_path_filenames in all_valid_JSON_filenames:
         files = [open(file, 'r') for file in this_path_filenames]
         input_data = [json.load(file) for file in files]
         [file.close() for file in files]
