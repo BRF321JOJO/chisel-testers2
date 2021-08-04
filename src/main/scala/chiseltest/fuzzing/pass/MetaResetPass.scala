@@ -2,7 +2,6 @@
 // released under BSD 3-Clause License
 // author: Jack Koenig <koenig@sifive.com>, Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-
 package chiseltest.fuzzing.pass
 
 import firrtl.Utils.throwInternalError
@@ -27,7 +26,7 @@ object MetaResetPass extends Transform with DependencyAPIMigration {
   // Make a firrtl util
   private def getZero(tpe: ir.Type): ir.Literal = tpe match {
     case gtpe: ir.GroundType =>
-      passes.RemoveValidIf.getGroundZero(gtpe).mapWidth{ w: ir.Width => gtpe.width }.asInstanceOf[ir.Literal]
+      passes.RemoveValidIf.getGroundZero(gtpe).mapWidth { w: ir.Width => gtpe.width }.asInstanceOf[ir.Literal]
     case other => throwInternalError(s"Unexpected non-GroundType $other")
   }
 

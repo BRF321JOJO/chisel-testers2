@@ -24,13 +24,13 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     dut.step(clock, 1)
     cycles += 1
   }
-  private var cycles: Long = 0
-  private var resetCycles: Long = 0
-  private var totalTime: Long = 0
+  private var cycles:       Long = 0
+  private var resetCycles:  Long = 0
+  private var totalTime:    Long = 0
   private var coverageTime: Long = 0
 
   private def setInputsToZero(): Unit = {
-    info.inputs.foreach { case (n, _) => dut.poke(n, 0)}
+    info.inputs.foreach { case (n, _) => dut.poke(n, 0) }
   }
 
   private def metaReset(): Unit = {
@@ -64,9 +64,9 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     dut.getCoverage().map(_._2).map(v => scala.math.min(v, 255).toByte)
   }
 
-  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
+  private val fuzzInputs = info.inputs.filterNot { case (n, _) => n == MetaReset || n == "reset" }
   private def applyInputs(bytes: Array[Byte]): Unit = {
-    var input: BigInt = bytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
+    var input: BigInt = bytes.zipWithIndex.map { case (b, i) => BigInt(b) << (i * 8) }.reduce(_ | _)
     fuzzInputs.foreach { case (name, bits) =>
       val mask = (BigInt(1) << bits) - 1
       val value = input & mask
@@ -84,12 +84,12 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
       "auto_in_e_bits_sink", "io_port_scl_in", "io_port_sda_in")
 
     //Create sequence of (channel, bit size) tuples ordered by original RFUZZ ordering
-    val channelNameToSize = fuzzInputs.map{input => (input._1, input._2) }.toMap
-    val sortedTuples = sortedInputs.map{input => (input, channelNameToSize(input))}
+    val channelNameToSize = fuzzInputs.map { input => (input._1, input._2) }.toMap
+    val sortedTuples = sortedInputs.map { input => (input, channelNameToSize(input)) }
 
     //Iterate over bits and apply bits to dut
-    var input: BigInt = bytes.reverse.zipWithIndex.map{ case (b, i) => BigInt(b) << (i * 8)}.reduce(_ | _)
-    sortedTuples.foreach{ case (name, size) =>
+    var input: BigInt = bytes.reverse.zipWithIndex.map { case (b, i) => BigInt(b) << (i * 8) }.reduce(_ | _)
+    sortedTuples.foreach { case (name, size) =>
       val shiftLength = originalRFUZZinputSize * 8 - size
       val mask = ((BigInt(1) << size) - 1) << shiftLength
       val bits = (input & mask) >> shiftLength
@@ -97,7 +97,6 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
       input = input << size
     }
   }
-
 
   override def run(input: java.io.InputStream): (Seq[Byte], Boolean) = {
     val start = System.nanoTime()
@@ -109,7 +108,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
     dut.resetCoverage()
 
     var inputBytes = pop(input)
-    while(inputBytes.nonEmpty) {
+    while (inputBytes.nonEmpty) {
       applyRfuzzInputs(inputBytes)
       step()
       inputBytes = pop(input)
@@ -122,7 +121,6 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
       c = Seq.fill[Byte](c.length)(0)
     }
 
-
     val end = System.nanoTime()
     totalTime += (end - start)
     coverageTime += (end - startCoverage)
@@ -134,7 +132,7 @@ class RfuzzTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget
   private def ms(i: Long): Long = i / 1000 / 1000
   override def finish(verbose: Boolean): Unit = {
     dut.finish()
-    if(verbose) {
+    if (verbose) {
       println(s"Executed $cycles target cycles (incl. $resetCycles reset cycles).")
       println(s"Total time in simulator: ${ms(totalTime)}ms")
       println(s"Total time for getCoverage: ${ms(coverageTime)}ms (${coverageTime.toDouble / totalTime.toDouble * 100.0}%)")

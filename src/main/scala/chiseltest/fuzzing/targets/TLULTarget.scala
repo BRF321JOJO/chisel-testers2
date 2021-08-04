@@ -27,14 +27,14 @@ case class Instruction(opcode: Opcode, address: BigInt = 0, data: BigInt = 0) {
     if (opcode != Invalid && opcode != Wait) {
       //ADDRESS
       for (i <- 0 to 3) {
-        val byte = Array(((address >> i * 8) & 0xFF).toByte)
+        val byte = Array(((address >> i * 8) & 0xff).toByte)
         byteArray ++= byte
       }
 
       if (opcode != Read) {
         //DATA
         for (i <- 0 to 3) {
-          val byte = Array(((data >> i * 8) & 0xFF).toByte)
+          val byte = Array(((data >> i * 8) & 0xff).toByte)
           byteArray ++= byte
         }
       }
@@ -62,13 +62,13 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     dut.step(clock, 1)
     cycles += 1
   }
-  private var cycles: Long = 0
-  private var resetCycles: Long = 0
-  private var totalTime: Long = 0
+  private var cycles:       Long = 0
+  private var resetCycles:  Long = 0
+  private var totalTime:    Long = 0
   private var coverageTime: Long = 0
 
   private def setInputsToZero(): Unit = {
-    info.inputs.foreach { case (n, _) => dut.poke(n, 0)}
+    info.inputs.foreach { case (n, _) => dut.poke(n, 0) }
   }
 
   private def metaReset(): Unit = {
@@ -104,7 +104,6 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
   val FULL_MASK = (1 << OT_TL_DBW) - 1
   val DEV_RESPONSE_TIMEOUT = 100
   //NEW CONSTANTS
-
 
   private def Get(address: BigInt): BigInt = {
     SendTLULRequest(TLULOpcodeAChannel.Get.toString.toInt, address, 0, OT_TL_SZW, FULL_MASK)
@@ -151,8 +150,7 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     }
   }
 
-
-  private val fuzzInputs = info.inputs.filterNot{ case (n, _) => n == MetaReset || n == "reset" }
+  private val fuzzInputs = info.inputs.filterNot { case (n, _) => n == MetaReset || n == "reset" }
   private def ClearRequest(): Unit = {
     fuzzInputs.foreach { case (name, _) => dut.poke(name, 0) }
     dut.poke("auto_in_d_ready", 1)
@@ -188,19 +186,18 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
     val ADDRESS_SIZE_BYTES = 4
     val DATA_SIZE_BYTES = 4
 
-
     if (!readValid) {
       (Instruction(Invalid), false)
     } else {
       var address: BigInt = 0
-      var data: BigInt = 0
+      var data:    BigInt = 0
 
       if (opcode == Read || opcode == Write) {
         val addressBytes: Array[Byte] = input.readNBytes(ADDRESS_SIZE_BYTES)
         if (addressBytes.length != ADDRESS_SIZE_BYTES) {
           return (Instruction(Invalid), false)
         }
-        address = addressBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
+        address = addressBytes.zipWithIndex.map { case (b, i) => BigInt(b) << (i * 8) }.reduce(_ | _)
       }
 
       if (opcode == Write) {
@@ -208,13 +205,12 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
         if (dataBytes.length != ADDRESS_SIZE_BYTES) {
           return (Instruction(Invalid), false)
         }
-        data = dataBytes.zipWithIndex.map { case (b, i) =>  BigInt(b) << (i * 8) }.reduce(_ | _)
+        data = dataBytes.zipWithIndex.map { case (b, i) => BigInt(b) << (i * 8) }.reduce(_ | _)
       }
 
       (Instruction(opcode, address, data), true)
     }
   }
-
 
   //CONSTANT VERSION: 3 values of byte correspond to valid opcodes, rest are invalid.
   private def getOpcode(input: java.io.InputStream): (Opcode, Boolean) = {
@@ -227,10 +223,10 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
 
     //Matches opcodeByte to corresponding opcodes (1-3). (0, 4-255) match to Invalid.
     val nextOpcode: Opcode = opcodeByte(0) match {
-      case Wait.value => Wait
-      case Read.value => Read
+      case Wait.value  => Wait
+      case Read.value  => Read
       case Write.value => Write
-      case _ => Invalid
+      case _           => Invalid
     }
     (nextOpcode, true)
   }
@@ -271,11 +267,10 @@ class TLULTarget(dut: SimulatorContext, info: TopmoduleInfo) extends FuzzTarget 
 
   private val acceptInvalid = false
 
-
   private def ms(i: Long): Long = i / 1000 / 1000
   override def finish(verbose: Boolean): Unit = {
     dut.finish()
-    if(verbose) {
+    if (verbose) {
       println(s"Executed $cycles target cycles (incl. $resetCycles reset cycles).")
       println(s"Total time in simulator: ${ms(totalTime)}ms")
       println(s"Total time for getCoverage: ${ms(coverageTime)}ms (${coverageTime.toDouble / totalTime.toDouble * 100.0}%)")

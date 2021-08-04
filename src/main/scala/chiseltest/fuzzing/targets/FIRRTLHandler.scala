@@ -17,7 +17,7 @@ object FIRRTLHandler {
     RunFirrtlTransformAnnotation(Dependency(pass.RemovePrintfPass)),
     RunFirrtlTransformAnnotation(Dependency(pass.AssertSignalPass)),
     RunFirrtlTransformAnnotation(Dependency[LowFirrtlEmitter]),
-    VerilatorUseJNI,
+    VerilatorUseJNI
     // debugging output
     // LogLevelAnnotation(LogLevel.Info),
   )

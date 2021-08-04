@@ -1,11 +1,11 @@
 package chiseltest.fuzzing.coverage
 
-import chiseltest.fuzzing.annotations.DoNotCoverAnnotation
+import chiseltest.fuzzing.annotations.{DoNotCoverAnnotation, MuxToggleOpAnnotation}
 import chiseltest.fuzzing.targets.{FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
 import firrtl.annotations.{Annotation, CircuitTarget}
 
-object CoverageAnalysis extends App{
+object CoverageAnalysis extends App {
 
   def usage = "Usage: java " + this.getClass + " FIRRTL AFL_OUT_FOLDER TARGET_KIND"
   require(args.length == 3, usage + "\nNOT: " + args.mkString(" "))
@@ -13,16 +13,21 @@ object CoverageAnalysis extends App{
   //Parse arguments to scripts
   val firrtlSrc = args(0)
 
-  val outFolder = os.pwd/os.RelPath(args(1))
-  val queue =         outFolder/os.RelPath("queue")
-  val end_time_file = outFolder/os.RelPath("end_time")
-  val outputJSON =    outFolder/os.RelPath("coverage.json")
+  val outFolder = os.pwd / os.RelPath(args(1))
+  val queue = outFolder / os.RelPath("queue")
+  val end_time_file = outFolder / os.RelPath("end_time")
+  val outputJSON = outFolder / os.RelPath("coverage.json")
 
   //Select and instrument chosen fuzzer
   println(s"Loading and instrumenting $firrtlSrc...")
 
   //Declare annotations for fuzzing
-  var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
+  var targetAnnos = Seq[Annotation](
+    DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")),
+    DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75"))
+  )
+  targetAnnos = targetAnnos ++ Seq(MuxToggleOpAnnotation(true))
+
   val writeVCD = false
   if (writeVCD) {
     targetAnnos = targetAnnos ++ Seq(WriteVcdAnnotation)
@@ -46,15 +51,14 @@ object CoverageAnalysis extends App{
     if (valid) {
       Some((inputFile, coverage))
     } else {
-      invalid_files+=1
+      invalid_files += 1
       None
     }
   }
 
   //Prints proportion of invalid files
-  assert(invalid_files/queue_files.length != 1, s"""No inputs in ${queue} are valid!""")
+  assert(invalid_files / queue_files.length != 1, s"""No inputs in ${queue} are valid!""")
   println(s"""Proportion of invalid files is ${invalid_files}/${queue_files.length}""")
-
 
   //Builds JSON file from coverage data
   val out = new StringBuilder("{")
@@ -64,9 +68,7 @@ object CoverageAnalysis extends App{
   out.append("}")
   os.write.over(outputJSON, out.substring(0))
 
-
   println("Done!")
-
 
   //Append end time to JSON file
   def appendEndTime(out: StringBuilder): Unit = {
@@ -74,7 +76,7 @@ object CoverageAnalysis extends App{
     val data = try source.mkString.toLong finally source.close()
 
     assert(start_time != 0L, "Start time is not initialized")
-    out.append(s""""end_time": ${(data - start_time)/1000.0}""")
+    out.append(s""""end_time": ${(data - start_time) / 1000.0}""")
   }
 
   private var start_time = 0L
@@ -104,9 +106,8 @@ object CoverageAnalysis extends App{
       assert(creation_time >= previous_time, "Input creation times are not monotonically increasing")
       previous_time = creation_time
 
-      val relative_creation_time = (creation_time - start_time)/1000.0
+      val relative_creation_time = (creation_time - start_time) / 1000.0
       out.append(s""""creation_time": ${relative_creation_time.toString}, """)
-
 
       //Add newly covered points to current set of covered points.
       overallCoverage = overallCoverage.union(processMuxToggleCoverage(count))
@@ -129,7 +130,6 @@ object CoverageAnalysis extends App{
     out.append("\n]")
   }
 
-
   //Handles MuxToggleCoverage. Converts COUNTS (number of times each signal toggled) to
   // COVEREDPOINTS (the set of signals which have been toggled for this input)
   def processMuxToggleCoverage(counts: Seq[Byte]): Set[Int] = {
@@ -146,8 +146,8 @@ object CoverageAnalysis extends App{
   // to COVEREDPOINTS (the set of signals which were both on and off for the given input)
   def processPseudoMuxToggleCoverage(counts: Seq[Byte]): Set[Int] = {
     var coveredPoints = Set[Int]()
-    for (i <- 0 until counts.length/2) {
-      if (counts(i*2) >= 1 && counts(i*2+1) >= 1) {
+    for (i <- 0 until counts.length / 2) {
+      if (counts(i * 2) >= 1 && counts(i * 2 + 1) >= 1) {
         coveredPoints += i
       }
     }

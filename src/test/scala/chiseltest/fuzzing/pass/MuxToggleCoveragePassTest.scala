@@ -1,8 +1,9 @@
 package chiseltest.fuzzing.pass
 
+import chiseltest.fuzzing.annotations.MuxToggleOpAnnotation
 import chiseltest.fuzzing.pass
 import chiseltest.internal.WriteVcdAnnotation
-import chiseltest.simulator.{SimulatorContext, VerilatorSimulator, VerilatorUseJNI, TreadleSimulator}
+import chiseltest.simulator.{SimulatorContext, TreadleSimulator, VerilatorSimulator, VerilatorUseJNI}
 import firrtl.LowFirrtlEmitter
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
@@ -33,8 +34,9 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
   )
 
   private val firrtlStage = new FirrtlStage
-  private def load(name: String, src: String, vcd: Boolean = false): SimulatorContext = {
-    val annos = DefaultAnnotations ++ Seq(TargetDirAnnotation("test_run_dir/" + name), FirrtlSourceAnnotation(src))
+  private def load(name: String, src: String, fullMuxToggle: Boolean, vcd: Boolean = false): SimulatorContext = {
+    var annos = DefaultAnnotations ++ Seq(TargetDirAnnotation("test_run_dir/" + name), FirrtlSourceAnnotation(src))
+    annos = annos ++ Seq(MuxToggleOpAnnotation(fullMuxToggle))
     val r = firrtlStage.execute(Array(), annos)
     val circuit = r.collectFirst { case FirrtlCircuitAnnotation(c) => c }.get
     val state = firrtl.CircuitState(circuit, r ++ (if(vcd) Some(WriteVcdAnnotation) else None))
@@ -45,7 +47,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
 
 
   it should "MTC, short and long toggle" in {
-    val dut = load("MTC_short_and_long", testSrc, vcd = true)
+    val dut = load("MTC_short_and_long", testSrc, false, vcd = true)
 
     val signal_values = List((1,1,0), (0,0,0), (0,1,1), (0,0,2), (0,0,2), (0,1,3), (0,1,3), (0,0,4))
     signal_values.foreach{ case (reset, cond, cov) =>
@@ -60,7 +62,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
   }
 
   it should "FullMTC, short and long toggle" in {
-    val dut = load("FullMTC_short_and_long", testSrc, vcd = true)
+    val dut = load("FullMTC_short_and_long", testSrc, true, vcd = true)
 
     val signal_values = List((1,1,0), (0,0,0), (0,1,0), (0,0,1), (0,0,1), (0,1,1), (0,1,1), (0,0,2))
     signal_values.foreach{ case (reset, cond, cov) =>
@@ -75,7 +77,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
   }
 
   it should "FullMTC, toggle off" in {
-    val dut = load("FullMTC_toggle_off", testSrc, vcd = true)
+    val dut = load("FullMTC_toggle_off", testSrc, true, vcd = true)
 
     val signal_values = List((1,1,0), (0,1,0), (0,0,0), (0,0,0), (0,1,1), (0,1,1), (0,1,1), (0,1,1))
     signal_values.foreach{ case (reset, cond, cov) =>
@@ -91,7 +93,7 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
 
 
   it should "FullMTC, should not count" in {
-    val dut = load("FullMTC_should_not_count", testSrc, vcd = true)
+    val dut = load("FullMTC_should_not_count", testSrc, true, vcd = true)
 
     val signal_values = List((1,1,0), (0,1,0), (0,1,0), (0,1,0), (0,0,0), (0,0,0), (0,0,0), (0,0,0))
     signal_values.foreach{ case (reset, cond, cov) =>

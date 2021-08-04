@@ -11,7 +11,9 @@ import scala.collection.mutable
 /** Turns all asserts and stop with a non-zero exit code into a single global `assert_failed` output. */
 object AssertSignalPass extends Transform with DependencyAPIMigration {
   override def prerequisites = Seq(
-    Dependency[firrtl.transforms.RemoveWires], Dependency(passes.ExpandWhens), Dependency(passes.LowerTypes),
+    Dependency[firrtl.transforms.RemoveWires],
+    Dependency(passes.ExpandWhens),
+    Dependency(passes.LowerTypes),
     Dependency(firrtl.transforms.EnsureNamedStatements)
   )
   override def invalidates(a: Transform) = false
@@ -57,21 +59,22 @@ object AssertSignalPass extends Transform with DependencyAPIMigration {
     case s : ir.Stop if s.ret != 0 =>
       asserts.append(ir.DefNode(s.info, s.name, s.en))
       ir.EmptyStmt
-    case v : ir.Verification if v.op == ir.Formal.Assert =>
+    case v: ir.Verification if v.op == ir.Formal.Assert =>
       asserts.append(ir.DefNode(v.info, v.name, Utils.and(v.en, Utils.not(v.pred))))
       ir.EmptyStmt
-    case i: ir.DefInstance => portNames.get(i.module) match {
-      case Some(portName) =>
-        // add port to instance type
-        val fields = i.tpe.asInstanceOf[ir.BundleType].fields
-        val tpe = ir.BundleType(fields :+ ir.Field(portName, Utils.to_flip(ir.Output), Utils.BoolType))
-        val newI = i.copy(tpe=tpe)
-        // if an assert in the submodule fails, the global assert fails
-        val assertOut = ir.SubField(ir.Reference(newI), portName, Utils.BoolType)
-        asserts.append(ir.DefNode(ir.NoInfo, "", assertOut))
-        newI
-      case None => i // e.g., ExtModules won't have an assert out port
-    }
+    case i: ir.DefInstance =>
+      portNames.get(i.module) match {
+        case Some(portName) =>
+          // add port to instance type
+          val fields = i.tpe.asInstanceOf[ir.BundleType].fields
+          val tpe = ir.BundleType(fields :+ ir.Field(portName, Utils.to_flip(ir.Output), Utils.BoolType))
+          val newI = i.copy(tpe = tpe)
+          // if an assert in the submodule fails, the global assert fails
+          val assertOut = ir.SubField(ir.Reference(newI), portName, Utils.BoolType)
+          asserts.append(ir.DefNode(ir.NoInfo, "", assertOut))
+          newI
+        case None => i // e.g., ExtModules won't have an assert out port
+      }
     case other => other.mapStmt(onStmt(_, asserts, portNames))
   }
 }

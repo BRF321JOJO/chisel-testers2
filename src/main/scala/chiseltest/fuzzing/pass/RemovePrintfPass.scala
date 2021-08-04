@@ -10,7 +10,9 @@ import firrtl.options.Dependency
 /** Removes all printf statements. */
 object RemovePrintfPass extends Transform with DependencyAPIMigration {
   override def prerequisites = Seq(
-    Dependency[firrtl.transforms.RemoveWires], Dependency(passes.ExpandWhens), Dependency(passes.LowerTypes)
+    Dependency[firrtl.transforms.RemoveWires],
+    Dependency(passes.ExpandWhens),
+    Dependency(passes.LowerTypes)
   )
   override def invalidates(a: Transform) = false
 
@@ -25,7 +27,7 @@ object RemovePrintfPass extends Transform with DependencyAPIMigration {
   }
 
   private def onStmt(s: ir.Statement): ir.Statement = s match {
-    case _ : ir.Print => ir.EmptyStmt
+    case _: ir.Print => ir.EmptyStmt
     case other => other.mapStmt(onStmt)
   }
 }

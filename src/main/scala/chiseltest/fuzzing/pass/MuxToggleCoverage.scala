@@ -4,7 +4,7 @@
 
 package chiseltest.fuzzing.pass
 
-import chiseltest.fuzzing.annotations.DoNotCoverAnnotation
+import chiseltest.fuzzing.annotations.{DoNotCoverAnnotation, MuxToggleOpAnnotation}
 import firrtl._
 import firrtl.annotations._
 import firrtl.options.Dependency
@@ -16,23 +16,29 @@ import scala.collection.mutable
 // TODO: this transform should build upon the standard toggle coverage pass once that is published + polished!
 object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   override def prerequisites = Seq(
-    Dependency[firrtl.transforms.RemoveWires], Dependency(passes.ExpandWhens), Dependency(passes.LowerTypes)
+    Dependency[firrtl.transforms.RemoveWires],
+    Dependency(passes.ExpandWhens),
+    Dependency(passes.LowerTypes)
   )
   override def invalidates(a: Transform) = false
 
   override def execute(state: CircuitState): CircuitState = {
     val c = CircuitTarget(state.circuit.main)
     val newAnnos = mutable.ListBuffer[Annotation]()
-    val circuit = state.circuit.mapModule(onModule(_, collectModulesToIgnore(state), c, newAnnos))
+    val fullToggleAnnotation = state.annotations.collectFirst { case o: MuxToggleOpAnnotation => o }.get
+    val fullToggle: Boolean = fullToggleAnnotation.fullToggle
+    newAnnos += fullToggleAnnotation
+
+    val circuit = state.circuit.mapModule(onModule(_, collectModulesToIgnore(state), c, newAnnos, fullToggle))
     //println(circuit.serialize)
     state.copy(circuit = circuit, annotations = newAnnos.toList ++: state.annotations)
   }
 
-  private def onModule(m: ir.DefModule, ignoreSet: Set[String], c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, ignoreSet: Set[String], c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation], fullToggle: Boolean): ir.DefModule = m match {
     case mod: ir.Module if !ignoreSet.contains(mod.name) =>
-      val ctx = ModuleCtx(c.module(mod.name), Namespace(mod), newAnnos, findClock(mod), findReset(mod))
+      val ctx = ModuleCtx(c.module(mod.name), Namespace(mod), newAnnos, findClock(mod), findReset(mod), fullToggle)
       val conds = findMuxConditions(mod)
-      val (stmts, annos) = coverFullToggle(ctx, conds)
+      val (stmts, annos) = coverToggle(ctx, conds)
       assert(annos.isEmpty)
       mod.copy(body = ir.Block(mod.body +: stmts))
     case other => other
@@ -58,7 +64,7 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   }
 
   private case class ModuleCtx(m: ModuleTarget, namespace: Namespace, newAnnos: mutable.ListBuffer[Annotation],
-    clock: ir.Expression, reset: ir.Expression)
+    clock: ir.Expression, reset: ir.Expression, fullToggle: Boolean)
 
   private def coverToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
     val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), Utils.BoolType,
@@ -87,7 +93,27 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
       val toggleNoResetCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggleNoReset),
         Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoResetCov"))
 
-      List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleNoResetCov)
+      if (!ctx.fullToggle) {
+
+        val toggleNoResetCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggleNoReset), Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoResetCov"))
+        List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleNoResetCov)
+
+      } else {
+        val toggleNoReset_ref = ir.Reference(toggleNoReset)
+
+        // toggleStore saves as a 1 when a 0-1 or 1-0 toggle has been seen before, but waiting for a "full" toggle.
+        val toggleStore_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_toggleStore"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
+        val toggleStore_ref = ir.Reference(toggleStore_reg)
+        //This switch logic will cause toggleStore to update (toggle) from 0 to 1 or 1 or 0.
+        val toggleStore_switch = ir.DoPrim(PrimOps.Xor, Seq(toggleStore_ref, toggleNoReset_ref), Seq.empty, Utils.BoolType)
+        val toggleStore_connect = ir.Connect(ir.NoInfo, toggleStore_ref, toggleStore_switch)
+
+        // fullToggle is a 1 on cycles when there is a new toggle and a toggle has been seen before, saved in toggleStore
+        val fullToggle = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_fullToggleNoReset"), Utils.and(toggleStore_ref, toggleNoReset_ref))
+        val fullToggleCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(fullToggle), Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_fullToggleNoResetCov"))
+
+        List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleStore_reg, toggleStore_connect, fullToggle, fullToggleCov)
+      }
     }
     (prev_reset_reg :: prev_reset_connect :: stmts, List())
   }
@@ -113,48 +139,6 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
     conds.values.toList
   }
 
-  private def coverFullToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
-    val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), Utils.BoolType,
-      ctx.clock, Utils.zero, Utils.zero)
-    val prev_reset_ref = ir.Reference(prev_reset_reg)
-    val prev_reset_connect = ir.Connect(ir.NoInfo, prev_reset_ref, ctx.reset)
-
-    val stmts: List[ir.Statement] = conds.flatMap { muxCond =>
-      val name: String = muxCond match {
-        case ir.Reference(name, _, _, _) => name
-        case _ => "mux_cond"
-      }
-      val cond = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_s"), muxCond)
-      val condRef = ir.Reference(cond)
-
-      val prev_cond_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), Utils.BoolType,
-        ctx.clock, Utils.zero, Utils.zero)
-      val prev_cond_ref = ir.Reference(prev_cond_reg)
-      val prev_cond_connect = ir.Connect(ir.NoInfo, prev_cond_ref, condRef)
-
-      val toggle = ir.DoPrim(PrimOps.Xor, Seq(condRef, prev_cond_ref), Seq.empty, Utils.BoolType)
-      val toggle_node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), toggle)
-
-      val toggleNoReset = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggleNoReset"),
-        Utils.and(ir.Reference(toggle_node), Utils.not(Utils.or(ctx.reset, prev_reset_ref))))
-      val toggleNoReset_ref = ir.Reference(toggleNoReset)
-
-      // toggleStore saves as a 1 when a 0-1 or 1-0 toggle has been seen before, but waiting for a "full" toggle.
-      val toggleStore_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_toggleStore"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
-      val toggleStore_ref = ir.Reference(toggleStore_reg)
-      //This switch logic will cause toggleStore to update (toggle) from 0 to 1 or 1 or 0.
-      val toggleStore_switch = ir.DoPrim(PrimOps.Xor, Seq(toggleStore_ref, toggleNoReset_ref), Seq.empty, Utils.BoolType)
-      val toggleStore_connect = ir.Connect(ir.NoInfo, toggleStore_ref, toggleStore_switch)
-
-      // fullToggle is a 1 on cycles when there is a new toggle and a toggle has been seen before, saved in toggleStore
-      val fullToggle = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_fullToggleNoReset"), Utils.and(toggleStore_ref, toggleNoReset_ref))
-      val fullToggleCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(fullToggle), Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_fullToggleNoResetCov"))
-
-      List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleStore_reg, toggleStore_connect, fullToggle, fullToggleCov)
-    }
-    (prev_reset_reg :: prev_reset_connect :: stmts, List())
-  }
-
   private def coverPseudoToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
     val stmts = conds.flatMap { cond =>
       val name = cond match {
@@ -171,6 +155,5 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
     }
     (stmts, List())
   }
-
 
 }

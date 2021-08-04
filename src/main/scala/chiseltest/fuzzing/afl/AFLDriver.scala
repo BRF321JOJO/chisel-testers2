@@ -27,10 +27,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 package chiseltest.fuzzing.afl
 
-import chiseltest.fuzzing.annotations.DoNotCoverAnnotation
+import chiseltest.fuzzing.annotations.{DoNotCoverAnnotation, MuxToggleOpAnnotation}
 import chiseltest.fuzzing.targets.{FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
 import firrtl.annotations.{Annotation, CircuitTarget}
@@ -38,9 +37,9 @@ import firrtl.annotations.{Annotation, CircuitTarget}
 import java.io.{File, InputStream, OutputStream, PrintWriter}
 
 /** Provides a main function that can be used to interface with the AFL fuzzer.
- *
- *  Based on code written by Rohan Padhye and Caroline Lemieux for the JQF project
- * */
+  *
+  *  Based on code written by Rohan Padhye and Caroline Lemieux for the JQF project
+  */
 object AFLDriver extends App {
   def usage = "Usage: java " + this.getClass + " FIRRTL TEST_INPUT_FILE AFL_TO_JAVA_PIPE JAVA_TO_AFL_PIPE TARGET_KIND"
   require(args.length == 5, usage + "\nNOT: " + args.mkString(" "))
@@ -54,7 +53,12 @@ object AFLDriver extends App {
 
   //Declare annotations for fuzzing
   //var targetAnnos = Seq[Annotation]()
-  var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
+  var targetAnnos = Seq[Annotation](
+    DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")),
+    DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75"))
+  )
+  targetAnnos = targetAnnos ++ Seq(MuxToggleOpAnnotation(true))
+
   val writeVCD = false
   if (writeVCD) {
     targetAnnos = targetAnnos ++ Seq(WriteVcdAnnotation)
