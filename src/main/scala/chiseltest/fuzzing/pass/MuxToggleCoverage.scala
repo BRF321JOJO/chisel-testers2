@@ -24,19 +24,20 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
 
   override def execute(state: CircuitState): CircuitState = {
     val c = CircuitTarget(state.circuit.main)
+
     val newAnnos = mutable.ListBuffer[Annotation]()
     val fullToggleAnnotation = state.annotations.collectFirst { case o: MuxToggleOpAnnotation => o }.get
-    val fullToggle: Boolean = fullToggleAnnotation.fullToggle
+    val useFullToggle: Boolean = fullToggleAnnotation.fullToggle
     newAnnos += fullToggleAnnotation
 
-    val circuit = state.circuit.mapModule(onModule(_, collectModulesToIgnore(state), c, newAnnos, fullToggle))
+    val circuit = state.circuit.mapModule(onModule(_, collectModulesToIgnore(state), c, newAnnos, useFullToggle))
     //println(circuit.serialize)
     state.copy(circuit = circuit, annotations = newAnnos.toList ++: state.annotations)
   }
 
-  private def onModule(m: ir.DefModule, ignoreSet: Set[String], c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation], fullToggle: Boolean): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, ignoreSet: Set[String], c: CircuitTarget, newAnnos: mutable.ListBuffer[Annotation], useFullToggle: Boolean): ir.DefModule = m match {
     case mod: ir.Module if !ignoreSet.contains(mod.name) =>
-      val ctx = ModuleCtx(c.module(mod.name), Namespace(mod), newAnnos, findClock(mod), findReset(mod), fullToggle)
+      val ctx = ModuleCtx(c.module(mod.name), Namespace(mod), newAnnos, findClock(mod), findReset(mod), useFullToggle)
       val conds = findMuxConditions(mod)
       val (stmts, annos) = coverToggle(ctx, conds)
       assert(annos.isEmpty)
@@ -64,58 +65,58 @@ object MuxToggleCoverage extends Transform with DependencyAPIMigration {
   }
 
   private case class ModuleCtx(m: ModuleTarget, namespace: Namespace, newAnnos: mutable.ListBuffer[Annotation],
-    clock: ir.Expression, reset: ir.Expression, fullToggle: Boolean)
+    clock: ir.Expression, reset: ir.Expression, useFullToggle: Boolean)
 
   private def coverToggle(ctx: ModuleCtx, conds: List[ir.Expression]): (List[ir.Statement], List[Annotation]) = {
-    val prev_reset_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), Utils.BoolType,
-      ctx.clock, Utils.zero, Utils.zero)
-    val prev_reset_ref = ir.Reference(prev_reset_reg)
-    val prev_reset_connect = ir.Connect(ir.NoInfo, prev_reset_ref, ctx.reset)
+    // Tracks the previous value of the reset signal
+    val prevReset = ir.DefRegister(ir.NoInfo, ctx.namespace.newName("prev_reset"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
+    val prevResetRef = ir.Reference(prevReset)
+    val prevResetConnect = ir.Connect(ir.NoInfo, prevResetRef, ctx.reset)
 
+    // Iterates through each passed in condition (most are ir.Reference)
     val stmts: List[ir.Statement] = conds.flatMap { muxCond =>
+      // Get name of reference to use to identify the current condition
       val name: String = muxCond match {
         case ir.Reference(name, _, _, _) => name
         case _ => "mux_cond"
       }
+
+      // Tracks the current boolean value of the given condition
       val cond = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_s"), muxCond)
       val condRef = ir.Reference(cond)
 
-      val prev_cond_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), Utils.BoolType,
-        ctx.clock, Utils.zero, Utils.zero)
-      val prev_cond_ref = ir.Reference(prev_cond_reg)
-      val prev_cond_connect = ir.Connect(ir.NoInfo, prev_cond_ref, condRef)
+      // Tracks the previous value of the condition
+      val prevCond = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_prev"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
+      val prevCondRef = ir.Reference(prevCond)
+      val prevCondConnect = ir.Connect(ir.NoInfo, prevCondRef, condRef)
 
-      val toggle = ir.DoPrim(PrimOps.Xor, Seq(condRef, prev_cond_ref), Seq.empty, Utils.BoolType)
-      val toggle_node = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), toggle)
+      // Tracks whether the condition has toggled on a given cycle
+      val toggle = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggle"), ir.DoPrim(PrimOps.Xor, Seq(condRef, prevCondRef), Seq.empty, Utils.BoolType))
+      // Tracks toggles but ignores them when reset is on
+      val toggleNoReset = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggleNoReset"), Utils.and(ir.Reference(toggle), Utils.not(Utils.or(ctx.reset, prevResetRef))))
 
-      val toggleNoReset = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_toggleNoReset"),
-        Utils.and(ir.Reference(toggle_node), Utils.not(Utils.or(ctx.reset, prev_reset_ref))))
-      val toggleNoResetCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggleNoReset),
-        Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoResetCov"))
-
-      if (!ctx.fullToggle) {
+      if (!ctx.useFullToggle) {
 
         val toggleNoResetCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(toggleNoReset), Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_toggleNoResetCov"))
-        List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleNoResetCov)
+        List(cond, prevCond, prevCondConnect, toggle, toggleNoReset, toggleNoResetCov)
 
       } else {
-        val toggleNoReset_ref = ir.Reference(toggleNoReset)
+        val toggleNoResetRef = ir.Reference(toggleNoReset)
 
-        // toggleStore saves as a 1 when a 0-1 or 1-0 toggle has been seen before, but waiting for a "full" toggle.
-        val toggleStore_reg = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_toggleStore"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
-        val toggleStore_ref = ir.Reference(toggleStore_reg)
-        //This switch logic will cause toggleStore to update (toggle) from 0 to 1 or 1 or 0.
-        val toggleStore_switch = ir.DoPrim(PrimOps.Xor, Seq(toggleStore_ref, toggleNoReset_ref), Seq.empty, Utils.BoolType)
-        val toggleStore_connect = ir.Connect(ir.NoInfo, toggleStore_ref, toggleStore_switch)
+        // Invert value of toggleStore when a toggle is seen. Initialized at 0.
+        val toggleStore = ir.DefRegister(ir.NoInfo, ctx.namespace.newName(name + "_toggleStore"), Utils.BoolType, ctx.clock, Utils.zero, Utils.zero)
+        val toggleStoreRef = ir.Reference(toggleStore)
+        val toggleStoreSwitch = ir.DoPrim(PrimOps.Xor, Seq(toggleStoreRef, toggleNoResetRef), Seq.empty, Utils.BoolType)
+        val toggleStoreConnect = ir.Connect(ir.NoInfo, toggleStoreRef, toggleStoreSwitch)
 
-        // fullToggle is a 1 on cycles when there is a new toggle and a toggle has been seen before, saved in toggleStore
-        val fullToggle = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_fullToggleNoReset"), Utils.and(toggleStore_ref, toggleNoReset_ref))
+        // 1 when a full toggle has occurred. Counted as when toggleStore is 1 and toggle is 1
+        val fullToggle = ir.DefNode(ir.NoInfo, ctx.namespace.newName(name + "_fullToggleNoReset"), Utils.and(toggleStoreRef, toggleNoResetRef))
         val fullToggleCov = ir.Verification(ir.Formal.Cover, ir.NoInfo, ctx.clock, ir.Reference(fullToggle), Utils.one, ir.StringLit(""), ctx.namespace.newName(name + "_fullToggleNoResetCov"))
 
-        List(cond, prev_cond_reg, prev_cond_connect, toggle_node, toggleNoReset, toggleStore_reg, toggleStore_connect, fullToggle, fullToggleCov)
+        List(cond, prevCond, prevCondConnect, toggle, toggleNoReset, toggleStore, toggleStoreConnect, fullToggle, fullToggleCov)
       }
     }
-    (prev_reset_reg :: prev_reset_connect :: stmts, List())
+    (prevReset :: prevResetConnect :: stmts, List())
   }
 
   // returns a list of unique (at least structurally unique!) mux conditions used in the module
