@@ -1,6 +1,7 @@
 package chiseltest.fuzzing.coverage
 
-import chiseltest.fuzzing._
+import chiseltest.fuzzing.annotations.DoNotCoverAnnotation
+import chiseltest.fuzzing.targets.{FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
 import firrtl.annotations.{Annotation, CircuitTarget}
 

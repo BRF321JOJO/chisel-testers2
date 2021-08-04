@@ -30,8 +30,8 @@
 
 package chiseltest.fuzzing.afl
 
-import chiseltest.fuzzing.coverage.CoverageAnalysis.processMuxToggleCoverage
-import chiseltest.fuzzing.{DoNotCoverAnnotation, FIRRTLHandler, FuzzTarget}
+import chiseltest.fuzzing.annotations.DoNotCoverAnnotation
+import chiseltest.fuzzing.targets.{FIRRTLHandler, FuzzTarget}
 import chiseltest.internal.WriteVcdAnnotation
 import firrtl.annotations.{Annotation, CircuitTarget}
 
@@ -53,6 +53,7 @@ object AFLDriver extends App {
   println(s"Loading and instrumenting $firrtlSrc...")
 
   //Declare annotations for fuzzing
+  //var targetAnnos = Seq[Annotation]()
   var targetAnnos = Seq[Annotation](DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")), DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75")))
   val writeVCD = false
   if (writeVCD) {

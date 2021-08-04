@@ -1,4 +1,4 @@
-package chiseltest.fuzzing
+package chiseltest.fuzzing.annotations
 
 import firrtl.annotations.{ModuleTarget, SingleTargetAnnotation}
 
@@ -6,5 +6,5 @@ import firrtl.annotations.{ModuleTarget, SingleTargetAnnotation}
   *  This annotation should be respected by all automated coverage passes.
   */
 case class DoNotCoverAnnotation(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
-  override def duplicate(n: ModuleTarget) = copy(target=n)
+  override def duplicate(n: ModuleTarget) = copy(target = n)
 }

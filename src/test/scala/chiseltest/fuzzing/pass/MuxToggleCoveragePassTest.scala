@@ -44,8 +44,8 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
   }
 
 
-  it should "correctly calculate mux toggle coverage" in {
-    val dut = load("MuxToggleCoverage_should_calculate_coverage", testSrc, vcd = true)
+  it should "MTC, short and long toggle" in {
+    val dut = load("MTC_short_and_long", testSrc, vcd = true)
 
     val signal_values = List((1,1,0), (0,0,0), (0,1,1), (0,0,2), (0,0,2), (0,1,3), (0,1,3), (0,0,4))
     signal_values.foreach{ case (reset, cond, cov) =>
@@ -58,4 +58,51 @@ class MuxToggleCoveragePassTest extends AnyFlatSpec {
     }
     dut.finish()
   }
+
+  it should "FullMTC, short and long toggle" in {
+    val dut = load("FullMTC_short_and_long", testSrc, vcd = true)
+
+    val signal_values = List((1,1,0), (0,0,0), (0,1,0), (0,0,1), (0,0,1), (0,1,1), (0,1,1), (0,0,2))
+    signal_values.foreach{ case (reset, cond, cov) =>
+      dut.poke("reset", reset)
+      dut.poke("cond", cond)
+      dut.step("clock", 1)
+
+      // println(dut.getCoverage())
+      assert(dut.getCoverage().head._2 == cov)
+    }
+    dut.finish()
+  }
+
+  it should "FullMTC, toggle off" in {
+    val dut = load("FullMTC_toggle_off", testSrc, vcd = true)
+
+    val signal_values = List((1,1,0), (0,1,0), (0,0,0), (0,0,0), (0,1,1), (0,1,1), (0,1,1), (0,1,1))
+    signal_values.foreach{ case (reset, cond, cov) =>
+      dut.poke("reset", reset)
+      dut.poke("cond", cond)
+      dut.step("clock", 1)
+
+      // println(dut.getCoverage())
+      assert(dut.getCoverage().head._2 == cov)
+    }
+    dut.finish()
+  }
+
+
+  it should "FullMTC, should not count" in {
+    val dut = load("FullMTC_should_not_count", testSrc, vcd = true)
+
+    val signal_values = List((1,1,0), (0,1,0), (0,1,0), (0,1,0), (0,0,0), (0,0,0), (0,0,0), (0,0,0))
+    signal_values.foreach{ case (reset, cond, cov) =>
+      dut.poke("reset", reset)
+      dut.poke("cond", cond)
+      dut.step("clock", 1)
+
+      // println(dut.getCoverage())
+      assert(dut.getCoverage().head._2 == cov)
+    }
+    dut.finish()
+  }
+
 }

@@ -2,13 +2,13 @@
 // released under BSD 3-Clause License
 // author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-package chiseltest.fuzzing
+package chiseltest.fuzzing.targets
 
-import chiseltest.simulator._
-import firrtl._
+import chiseltest.fuzzing.pass
+import chiseltest.simulator.{TopmoduleInfo, VerilatorSimulator, VerilatorUseJNI}
 import firrtl.options.{Dependency, TargetDirAnnotation}
-import firrtl.stage._
-import logger.{LogLevel, LogLevelAnnotation}
+import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlFileAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
+import firrtl.{AnnotationSeq, LowFirrtlEmitter}
 
 object FIRRTLHandler {
   val DefaultAnnotations = Seq(
@@ -17,7 +17,6 @@ object FIRRTLHandler {
     RunFirrtlTransformAnnotation(Dependency(pass.RemovePrintfPass)),
     RunFirrtlTransformAnnotation(Dependency(pass.AssertSignalPass)),
     RunFirrtlTransformAnnotation(Dependency[LowFirrtlEmitter]),
-    // if we use verilator, we want to use JNI
     VerilatorUseJNI,
     // debugging output
     // LogLevelAnnotation(LogLevel.Info),
@@ -26,13 +25,13 @@ object FIRRTLHandler {
   def firrtlToTarget(filename: String, target: String, targetDir: String, annos: AnnotationSeq = Seq.empty): FuzzTarget = {
     val state = loadFirrtl(filename, targetDir, annos)
     val info = TopmoduleInfo(state.circuit)
-    val dut = TreadleSimulator.createContext(state)
-    //val dut = VerilatorSimulator.createContext(state)
+    //val dut = TreadleSimulator.createContext(state)
+    val dut = VerilatorSimulator.createContext(state)
 
     val fuzzTarget: FuzzTarget = target.toLowerCase() match {
       case "rfuzz" => new RfuzzTarget(dut, info)
-      case "tlul" => new TLULTarget(dut, info)
-      case other => throw new NotImplementedError(s"Unknown target $other")
+      case "tlul"  => new TLULTarget(dut, info)
+      case other   => throw new NotImplementedError(s"Unknown target $other")
     }
     fuzzTarget
   }

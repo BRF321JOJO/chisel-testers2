@@ -1,5 +1,6 @@
 package chiseltest.fuzzing
 
+import chiseltest.fuzzing.targets.{FIRRTLHandler, Instruction, Read, Wait, Write}
 import org.scalatest.flatspec.AnyFlatSpec
 
 import java.io.ByteArrayInputStream

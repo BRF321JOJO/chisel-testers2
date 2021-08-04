@@ -57,10 +57,8 @@ def loadJSON(JSON_filepaths):
 
     all_valid_JSON_filenames = []
     for i, names in enumerate(all_JSON_filenames):
-        if not names:
-            print("WARNING: Filepath contains no JSON files: {}".format(JSON_filepaths[i]))
-        else:
-            all_valid_JSON_filenames.append(names)
+        assert names, "Filepath contains no JSON files: {}".format(JSON_filepaths[i])
+        all_valid_JSON_filenames.append(names)
 
     returned_data = []
     for this_path_filenames in all_valid_JSON_filenames:

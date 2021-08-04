@@ -2,7 +2,7 @@
 // released under BSD 3-Clause License
 // author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
-package chiseltest.fuzzing
+package chiseltest.fuzzing.targets
 
 import chiseltest.simulator._
 
