@@ -2,14 +2,15 @@
 # This script automates running the AFL fuzz script.
 # Takes in the desired output folder and number of minutes to fuzz.
 
-if ! [ $# -eq 3 ] ; then
-  echo "Incorrect number of arguments!. Must pass in arguments: OUTPUT_FOLDER MINUTES HARNESS" >&2
+if ! [ $# -eq 4 ] ; then
+  echo "Incorrect number of arguments!. Must pass in arguments: OUTPUT_FOLDER MINUTES HARNESS FIRRTL" >&2
   exit 1
 fi
 
 OUT=$1
 minutes=$2
 harness=$3
+FIRRTL=$4
 
 # Performs checks on inputted command line arguments
 if [ -d ${OUT} ]; then
@@ -32,8 +33,11 @@ time_string=${shifted}s
 sbt assembly
 
 # Calls AFLDriver to setup fuzzing
+echo ""
+echo "Calling AFLDriver on: ${FIRRTL} input a2j j2a ${harness}"
+echo ""
 # Option 1 (preferred due to slightly better memory usage and possible slightly better execution speed)
-java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.afl.AFLDriver src/test/resources/fuzzing/TLI2C.fir input a2j j2a ${harness} &
+java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.afl.AFLDriver ${FIRRTL} input a2j j2a ${harness} &
 sleep 13s
 # Option 2
 #sbt "runMain chiseltest.fuzzing.afl.AFLDriver src/test/resources/fuzzing/TLI2C.fir input a2j j2a TLUL" &
@@ -51,6 +55,6 @@ done
 mv temp_out ${OUT}
 
 # Generate coverage results with CoverageAnalysis.scala
-java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.coverage.CoverageAnalysis src/test/resources/fuzzing/TLI2C.fir ${OUT} ${harness}
+java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.coverage.CoverageAnalysis ${FIRRTL} ${OUT} ${harness}
 
 exit 0
