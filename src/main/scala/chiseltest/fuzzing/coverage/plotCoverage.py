@@ -39,7 +39,7 @@ def plotLines(do_average, json_data, JSON_filenames):
             interp_function = interp1d(creation_times, cumulative_coverage, kind='previous', bounds_error=False, assume_sorted=True)
             # Interpolates coverage value for each time in all_times. Saved to all_coverage matrix
             all_coverage[i] = interp_function(all_times)
-        means = np.nanmean(all_coverage, axis=0)
+        means = np.mean(all_coverage, axis=0)
         plt.step(all_times, means, where='post', label="Averaged: " + ", ".join([str(name) for name in JSON_filenames]))
 
     else:

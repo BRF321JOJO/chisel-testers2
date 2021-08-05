@@ -4,6 +4,9 @@ import glob
 import os
 
 
+"""This script will take in an out folder from RFUZZ and convert each input (stored as a JSON) into its binary form"""
+
+
 """Iterates through provided output folder and generates the binary form for each input"""
 def convertFilesToBinary(input_folder, output_folder):
     if not os.path.isdir(output_folder):
