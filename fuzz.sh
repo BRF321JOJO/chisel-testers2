@@ -2,13 +2,19 @@
 #This script automates running the AFL fuzz script.
 #Takes in the desired output folder and number of minutes to fuzz.
 
-if ! [ $# -eq 2 ] ; then
-  echo "Incorrect number of arguments!. Must pass in arguments: OUTPUT_FOLDER MINUTES" >&2
+if ! [ $# -eq 3 ] ; then
+  echo "Incorrect number of arguments!. Must pass in arguments: OUTPUT_FOLDER MINUTES HARNESS" >&2
   exit 1
 fi
 
 OUT=$1
 minutes=$2
+harness=$3
+
+if [ -d ${OUT} ]; then
+  echo "WARNING! DESIRED OUTPUT FOLDER WOULD BE OVERWRITTEN: ${OUT}. Exiting to preserve fuzzing results."
+  exit 1
+fi
 
 re='^[0-9]+$'
 if ! [[ $minutes =~ $re ]] ; then
@@ -21,6 +27,17 @@ fi
 ((shifted=$seconds+5))
 time_string=${shifted}s
 
+
+#Calls AFLDriver to setup fuzzing
+#Option 1 (preferred due to slightly better memory usage and possible slightly better execution speed)
+sbt assembly
+java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.afl.AFLDriver src/test/resources/fuzzing/TLI2C.fir input a2j j2a ${harness} &
+sleep 13s
+#Option 2
+#sbt "runMain chiseltest.fuzzing.afl.AFLDriver src/test/resources/fuzzing/TLI2C.fir input a2j j2a TLUL" &
+#sleep 20s
+
+
 #Calls alf to fuzz for the specified period of time
 timeout $time_string ~/AFL/afl-fuzz -i seeds -o temp_out -f input -- ./fuzzing/afl-proxy a2j j2a log
 
@@ -29,10 +46,9 @@ while ! [ -f "temp_out/end_time" ]; do
   sleep 1
 done
 
-if [ -d ${OUT} ]; then
-  rm -r ${OUT}
-fi
-
 mv temp_out ${OUT}
+
+# Produce coverage results on the generated fuzzing outputs with CoverageAnalysis.scala
+java -cp target/scala-2.12/chiseltest-assembly-0.5-SNAPSHOT.jar chiseltest.fuzzing.coverage.CoverageAnalysis src/test/resources/fuzzing/TLI2C.fir ${OUT} ${harness}
 
 exit 0

@@ -26,7 +26,7 @@ object CoverageAnalysis extends App {
     DoNotCoverAnnotation(CircuitTarget("TLI2C").module("TLMonitor_72")),
     DoNotCoverAnnotation(CircuitTarget("TLI2C").module("DummyPlusArgReader_75"))
   )
-  targetAnnos = targetAnnos ++ Seq(MuxToggleOpAnnotation(true))
+  targetAnnos = targetAnnos ++ Seq(MuxToggleOpAnnotation(false))
 
   val writeVCD = false
   if (writeVCD) {

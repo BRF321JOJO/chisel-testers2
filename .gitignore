@@ -25,5 +25,4 @@ seeds/
 */__pycache__/
 venv/
 results/
-
-
+coveragePlot.png
