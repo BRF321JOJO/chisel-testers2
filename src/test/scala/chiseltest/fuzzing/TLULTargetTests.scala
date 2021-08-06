@@ -56,7 +56,7 @@ class TLULTargetTests extends AnyFlatSpec {
 
     //Read in generated input file as bytes
     //val inputPath = "seeds/auto_ecb_128bit_encrypt_2blocks.hwf"
-    val inputPath = "seeds/TLI2C_seed.hwf"
+    val inputPath = "src/main/scala/chiseltest/fuzzing/seeds/binary/TLI2C_longSeed.hwf"
     val inputFile = os.pwd / os.RelPath(inputPath)
     val input = os.read.inputStream(inputFile)
 
